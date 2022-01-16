@@ -13,8 +13,6 @@ module_param(ecc_enable_override, int, 0644);
 
 static struct msr __percpu *msrs;
 
-static struct amd64_family_type *fam_type;
-
 /* Per-node stuff */
 static struct ecc_settings **ecc_stngs;
 
@@ -448,7 +446,7 @@ static void get_cs_base_and_mask(struct amd64_pvt *pvt, int csrow, u8 dct,
 	for (i = 0; i < pvt->csels[dct].m_cnt; i++)
 
 #define for_each_umc(i) \
-	for (i = 0; i < fam_type->max_mcs; i++)
+	for (i = 0; i < pvt->fam_type->max_mcs; i++)
 
 /*
  * @input_addr is an InputAddr associated with the node given by mci. Return the
@@ -988,6 +986,905 @@ static int sys_addr_to_csrow(struct mem_ctl_info *mci, u64 sys_addr)
 	return csrow;
 }
 
+/*
+ * Glossary of acronyms used in address translation for Zen-based systems
+ *
+ * CCM		=	CPU Core Coherent Module
+ * COD		=	Cluster-on-Die
+ * CS		=	Coherent Slave
+ * DF		=	Data Fabric
+ * UMC		=	Unified Memory Controller
+ */
+
+/* Protect the PCI config register pairs used for DF indirect access. */
+static DEFINE_MUTEX(df_indirect_mutex);
+
+/*
+ * Data Fabric Indirect Access uses FICAA/FICAD.
+ *
+ * Fabric Indirect Configuration Access Address (FICAA): Constructed based
+ * on the device's Instance Id and the PCI function and register offset of
+ * the desired register.
+ *
+ * Fabric Indirect Configuration Access Data (FICAD): There are FICAD LO
+ * and FICAD HI registers but so far we only need the LO register.
+ *
+ * Use Instance Id 0xFF to indicate a broadcast read.
+ */
+#define DF_BROADCAST	0xFF
+static int __df_indirect_read(u16 node, u8 func, u16 reg, u8 instance_id, u32 *lo)
+{
+	struct pci_dev *F4;
+	u32 ficaa;
+	int err = -ENODEV;
+
+	if (node >= amd_nb_num())
+		goto out;
+
+	F4 = node_to_amd_nb(node)->link;
+	if (!F4)
+		goto out;
+
+	ficaa  = (instance_id == DF_BROADCAST) ? 0 : 1;
+	ficaa |= reg & 0x3FC;
+	ficaa |= (func & 0x7) << 11;
+	ficaa |= instance_id << 16;
+
+	mutex_lock(&df_indirect_mutex);
+
+	err = pci_write_config_dword(F4, 0x5C, ficaa);
+	if (err) {
+		pr_warn("Error writing DF Indirect FICAA, FICAA=0x%x\n", ficaa);
+		goto out_unlock;
+	}
+
+	err = pci_read_config_dword(F4, 0x98, lo);
+	if (err)
+		pr_warn("Error reading DF Indirect FICAD LO, FICAA=0x%x.\n", ficaa);
+
+out_unlock:
+	mutex_unlock(&df_indirect_mutex);
+
+out:
+	return err;
+}
+
+static int df_indirect_read_instance(u16 node, u8 func, u16 reg, u8 instance_id, u32 *lo)
+{
+	return __df_indirect_read(node, func, reg, instance_id, lo);
+}
+
+static int df_indirect_read_broadcast(u16 node, u8 func, u16 reg, u32 *lo)
+{
+	return __df_indirect_read(node, func, reg, DF_BROADCAST, lo);
+}
+
+/* These are mapped 1:1 to the hardware values. Special cases are set at > 0x20. */
+enum intlv_modes {
+	NONE		= 0x00,
+	NOHASH_2CH	= 0x01,
+	NOHASH_4CH	= 0x03,
+	NOHASH_8CH	= 0x05,
+	NOHASH_16CH	= 0x07,
+	NOHASH_32CH	= 0x08,
+	HASH_COD4_2CH	= 0x0C,
+	HASH_COD2_4CH	= 0x0D,
+	HASH_COD1_8CH	= 0x0E,
+	HASH_8CH	= 0x1C,
+	HASH_16CH	= 0x1D,
+	HASH_32CH	= 0x1E,
+	DF2_HASH_2CH	= 0x21,
+};
+
+/* Use "reg_" prefix for raw register values. */
+struct addr_ctx {
+	enum intlv_modes intlv_mode;
+	u64 ret_addr;
+	u32 tmp;
+	u32 reg_dram_offset;
+	u32 reg_base_addr;
+	u32 reg_limit_addr;
+	u32 reg_fab_id_mask0;
+	u32 reg_fab_id_mask1;
+	u32 reg_fab_id_mask2;
+	u16 cs_fabric_id;
+	u16 die_id_mask;
+	u16 socket_id_mask;
+	u16 nid;
+	u8 inst_id;
+	u8 map_num;
+	u8 intlv_addr_bit;
+	u8 intlv_num_chan;
+	u8 intlv_num_dies;
+	u8 intlv_num_sockets;
+	u8 cs_id;
+	u8 node_id_shift;
+	u8 num_blk_instances;
+	bool late_hole_remove;
+	int (*dehash_addr)(struct addr_ctx *ctx);
+	void (*make_space_for_cs_id)(struct addr_ctx *ctx);
+	void (*insert_cs_id)(struct addr_ctx *ctx);
+};
+
+struct data_fabric_ops {
+	u64	(*get_hi_addr_offset)		(struct addr_ctx *ctx);
+	u16	(*get_dst_fabric_id)		(struct addr_ctx *ctx);
+	u16	(*get_component_id_mask)	(struct addr_ctx *ctx);
+	u8	(*get_die_id_shift)		(struct addr_ctx *ctx);
+	u8	(*get_socket_id_shift)		(struct addr_ctx *ctx);
+	u8	(*get_intlv_addr_sel)		(struct addr_ctx *ctx);
+	int	(*get_intlv_mode)		(struct addr_ctx *ctx);
+	int	(*get_cs_fabric_id)		(struct addr_ctx *ctx);
+	int	(*get_masks)			(struct addr_ctx *ctx);
+	void	(*get_intlv_num_dies)		(struct addr_ctx *ctx);
+	void	(*get_intlv_num_sockets)	(struct addr_ctx *ctx);
+};
+
+static void expand_bits(u8 start_bit, u8 num_bits, u64 *value)
+{
+	u64 temp1, temp2;
+
+	if (start_bit == 0) {
+		*value <<= num_bits;
+		return;
+	}
+
+	temp1 = *value & GENMASK_ULL(start_bit - 1, 0);
+	temp2 = (*value & GENMASK_ULL(63, start_bit)) << num_bits;
+	*value = temp1 | temp2;
+}
+
+static void make_space_for_cs_id_simple(struct addr_ctx *ctx)
+{
+	u8 num_intlv_bits = ctx->intlv_num_chan;
+
+	num_intlv_bits += ctx->intlv_num_dies;
+	num_intlv_bits += ctx->intlv_num_sockets;
+	expand_bits(ctx->intlv_addr_bit, num_intlv_bits, &ctx->ret_addr);
+}
+
+static void insert_cs_id_simple(struct addr_ctx *ctx)
+{
+	ctx->ret_addr |= (ctx->cs_id << ctx->intlv_addr_bit);
+}
+
+static u64 get_hi_addr_offset_df2(struct addr_ctx *ctx)
+{
+	return (ctx->reg_dram_offset & GENMASK_ULL(31, 20)) << 8;
+}
+
+static int dehash_addr_df2(struct addr_ctx *ctx)
+{
+	u8 hashed_bit =	(ctx->ret_addr >> 12) ^
+			(ctx->ret_addr >> 18) ^
+			(ctx->ret_addr >> 21) ^
+			(ctx->ret_addr >> 30) ^
+			(ctx->ret_addr >> ctx->intlv_addr_bit);
+
+	hashed_bit &= BIT(0);
+
+	if (hashed_bit != ((ctx->ret_addr >> ctx->intlv_addr_bit) & BIT(0)))
+		ctx->ret_addr ^= BIT(ctx->intlv_addr_bit);
+
+	return 0;
+}
+
+static int get_intlv_mode_df2(struct addr_ctx *ctx)
+{
+	ctx->intlv_mode = (ctx->reg_base_addr >> 4) & 0xF;
+
+	if (ctx->intlv_mode == 8) {
+		ctx->intlv_mode = DF2_HASH_2CH;
+		ctx->dehash_addr = dehash_addr_df2;
+	}
+
+	ctx->make_space_for_cs_id = make_space_for_cs_id_simple;
+	ctx->insert_cs_id = insert_cs_id_simple;
+
+	if (ctx->intlv_mode != NONE &&
+	    ctx->intlv_mode != NOHASH_2CH &&
+	    ctx->intlv_mode != DF2_HASH_2CH)
+		return -EINVAL;
+
+	return 0;
+}
+
+static u8 get_intlv_addr_sel_df2(struct addr_ctx *ctx)
+{
+	return (ctx->reg_base_addr >> 8) & 0x7;
+}
+
+static void get_intlv_num_dies_df2(struct addr_ctx *ctx)
+{
+	ctx->intlv_num_dies  = (ctx->reg_limit_addr >> 10) & 0x3;
+}
+
+static void get_intlv_num_sockets_df2(struct addr_ctx *ctx)
+{
+	ctx->intlv_num_sockets = (ctx->reg_limit_addr >> 8) & 0x1;
+}
+
+static int get_cs_fabric_id_df2(struct addr_ctx *ctx)
+{
+	/* Read D18F0x50 (FabricBlockInstanceInformation3). */
+	if (df_indirect_read_instance(ctx->nid, 0, 0x50, ctx->inst_id, &ctx->tmp))
+		return -EINVAL;
+
+	ctx->cs_fabric_id = (ctx->tmp >> 8) & 0xFF;
+
+	return 0;
+}
+
+static int get_masks_df2(struct addr_ctx *ctx)
+{
+	/* Read D18F1x208 (SystemFabricIdMask). */
+	if (df_indirect_read_broadcast(ctx->nid, 1, 0x208, &ctx->reg_fab_id_mask0))
+		return -EINVAL;
+
+	ctx->die_id_mask    = (ctx->reg_fab_id_mask0 >> 8) & 0xFF;
+	ctx->socket_id_mask = (ctx->reg_fab_id_mask0 >> 16) & 0xFF;
+
+	return 0;
+}
+
+static u8 get_die_id_shift_df2(struct addr_ctx *ctx)
+{
+	return (ctx->reg_fab_id_mask0 >> 24) & 0xF;
+}
+
+static u8 get_socket_id_shift_df2(struct addr_ctx *ctx)
+{
+	return (ctx->reg_fab_id_mask0 >> 28) & 0xF;
+}
+
+static u16 get_dst_fabric_id_df2(struct addr_ctx *ctx)
+{
+	return ctx->reg_limit_addr & 0xFF;
+}
+
+static u16 get_component_id_mask_df2(struct addr_ctx *ctx)
+{
+	return (~(ctx->socket_id_mask | ctx->die_id_mask)) & 0xFF;
+}
+
+struct data_fabric_ops df2_ops = {
+	.get_hi_addr_offset		=	get_hi_addr_offset_df2,
+	.get_intlv_mode			=	get_intlv_mode_df2,
+	.get_intlv_addr_sel		=	get_intlv_addr_sel_df2,
+	.get_intlv_num_dies		=	get_intlv_num_dies_df2,
+	.get_intlv_num_sockets		=	get_intlv_num_sockets_df2,
+	.get_cs_fabric_id		=	get_cs_fabric_id_df2,
+	.get_masks			=	get_masks_df2,
+	.get_die_id_shift		=	get_die_id_shift_df2,
+	.get_socket_id_shift		=	get_socket_id_shift_df2,
+	.get_dst_fabric_id		=	get_dst_fabric_id_df2,
+	.get_component_id_mask		=	get_component_id_mask_df2,
+};
+
+static u64 get_hi_addr_offset_df3(struct addr_ctx *ctx)
+{
+	return (ctx->reg_dram_offset & GENMASK_ULL(31, 12)) << 16;
+}
+
+static void make_space_for_cs_id_cod_hash(struct addr_ctx *ctx)
+{
+	u8 num_intlv_bits = ctx->intlv_num_chan;
+
+	num_intlv_bits += ctx->intlv_num_sockets;
+	expand_bits(ctx->intlv_addr_bit, 1, &ctx->ret_addr);
+	if (num_intlv_bits > 1)
+		expand_bits(12, num_intlv_bits - 1, &ctx->ret_addr);
+}
+
+static void insert_cs_id_cod_hash(struct addr_ctx *ctx)
+{
+	ctx->ret_addr |= ((ctx->cs_id & 0x1) << ctx->intlv_addr_bit);
+	ctx->ret_addr |= ((ctx->cs_id & 0xE) << 11);
+}
+
+static int dehash_addr_df3(struct addr_ctx *ctx)
+{
+	u8 hashed_bit, intlv_ctl_64k, intlv_ctl_2M, intlv_ctl_1G;
+
+	/* Read D18F0x3F8 (DfGlobalCtrl). */
+	if (df_indirect_read_broadcast(0, 0, 0x3F8, &ctx->tmp))
+		return -EINVAL;
+
+	intlv_ctl_64k = !!((ctx->tmp >> 20) & 0x1);
+	intlv_ctl_2M  = !!((ctx->tmp >> 21) & 0x1);
+	intlv_ctl_1G  = !!((ctx->tmp >> 22) & 0x1);
+
+	hashed_bit =	(ctx->ret_addr >> 14) ^
+			((ctx->ret_addr >> 18) & intlv_ctl_64k) ^
+			((ctx->ret_addr >> 23) & intlv_ctl_2M) ^
+			((ctx->ret_addr >> 32) & intlv_ctl_1G) ^
+			(ctx->ret_addr >> ctx->intlv_addr_bit);
+
+	hashed_bit &= BIT(0);
+
+	if (hashed_bit != ((ctx->ret_addr >> ctx->intlv_addr_bit) & BIT(0)))
+		ctx->ret_addr ^= BIT(ctx->intlv_addr_bit);
+
+	if (ctx->intlv_mode != HASH_COD2_4CH &&
+	    ctx->intlv_mode != HASH_COD1_8CH)
+		return 0;
+
+	hashed_bit =	(ctx->ret_addr >> 12) ^
+			((ctx->ret_addr >> 16) & intlv_ctl_64k) ^
+			((ctx->ret_addr >> 21) & intlv_ctl_2M) ^
+			((ctx->ret_addr >> 30) & intlv_ctl_1G);
+
+	hashed_bit &= BIT(0);
+
+	if (hashed_bit != ((ctx->ret_addr >> 12) & BIT(0)))
+		ctx->ret_addr ^= BIT(12);
+
+	if (ctx->intlv_mode != HASH_COD1_8CH)
+		return 0;
+
+	hashed_bit =	(ctx->ret_addr >> 13) ^
+			((ctx->ret_addr >> 17) & intlv_ctl_64k) ^
+			((ctx->ret_addr >> 22) & intlv_ctl_2M) ^
+			((ctx->ret_addr >> 31) & intlv_ctl_1G);
+
+	hashed_bit &= BIT(0);
+
+	if (hashed_bit != ((ctx->ret_addr >> 13) & BIT(0)))
+		ctx->ret_addr ^= BIT(13);
+
+	return 0;
+}
+
+static int get_intlv_mode_df3(struct addr_ctx *ctx)
+{
+	ctx->intlv_mode = (ctx->reg_base_addr >> 2) & 0xF;
+
+	if (ctx->intlv_mode == HASH_COD4_2CH ||
+	    ctx->intlv_mode == HASH_COD2_4CH ||
+	    ctx->intlv_mode == HASH_COD1_8CH) {
+		ctx->make_space_for_cs_id	= make_space_for_cs_id_cod_hash;
+		ctx->insert_cs_id		= insert_cs_id_cod_hash;
+		ctx->dehash_addr		= dehash_addr_df3;
+	} else {
+		ctx->make_space_for_cs_id	= make_space_for_cs_id_simple;
+		ctx->insert_cs_id		= insert_cs_id_simple;
+	}
+
+	return 0;
+}
+
+static u8 get_intlv_addr_sel_df3(struct addr_ctx *ctx)
+{
+	return (ctx->reg_base_addr >> 9) & 0x7;
+}
+
+static void get_intlv_num_dies_df3(struct addr_ctx *ctx)
+{
+	ctx->intlv_num_dies  = (ctx->reg_base_addr >> 6) & 0x3;
+}
+
+static void get_intlv_num_sockets_df3(struct addr_ctx *ctx)
+{
+	ctx->intlv_num_sockets = (ctx->reg_base_addr >> 8) & 0x1;
+}
+
+static u8 get_die_id_shift_df3(struct addr_ctx *ctx)
+{
+	return ctx->node_id_shift;
+}
+
+static u8 get_socket_id_shift_df3(struct addr_ctx *ctx)
+{
+	return ((ctx->reg_fab_id_mask1 >> 8) & 0x3) + ctx->node_id_shift;
+}
+
+static int get_masks_df3(struct addr_ctx *ctx)
+{
+	/* Read D18F1x208 (SystemFabricIdMask). */
+	if (df_indirect_read_broadcast(ctx->nid, 1, 0x208, &ctx->reg_fab_id_mask0))
+		return -EINVAL;
+
+	/* Read D18F1x20C (SystemFabricIdMask1) */
+	if (df_indirect_read_broadcast(0, 1, 0x20C, &ctx->reg_fab_id_mask1))
+		return -EINVAL;
+
+	ctx->node_id_shift = ctx->reg_fab_id_mask1 & 0xF;
+
+	ctx->die_id_mask = (ctx->reg_fab_id_mask1 >> 16) & 0x7;
+	ctx->die_id_mask <<= ctx->node_id_shift;
+
+	ctx->socket_id_mask = (ctx->reg_fab_id_mask1 >> 24) & 0x7;
+	ctx->socket_id_mask <<= ctx->node_id_shift;
+
+	return 0;
+}
+
+static u16 get_dst_fabric_id_df3(struct addr_ctx *ctx)
+{
+	return ctx->reg_limit_addr & 0x3FF;
+}
+
+static u16 get_component_id_mask_df3(struct addr_ctx *ctx)
+{
+	return ctx->reg_fab_id_mask0 & 0x3FF;
+}
+
+struct data_fabric_ops df3_ops = {
+	.get_hi_addr_offset		=	get_hi_addr_offset_df3,
+	.get_intlv_mode			=	get_intlv_mode_df3,
+	.get_intlv_addr_sel		=	get_intlv_addr_sel_df3,
+	.get_intlv_num_dies		=	get_intlv_num_dies_df3,
+	.get_intlv_num_sockets		=	get_intlv_num_sockets_df3,
+	.get_cs_fabric_id		=	get_cs_fabric_id_df2,
+	.get_masks			=	get_masks_df3,
+	.get_die_id_shift		=	get_die_id_shift_df3,
+	.get_socket_id_shift		=	get_socket_id_shift_df3,
+	.get_dst_fabric_id		=	get_dst_fabric_id_df3,
+	.get_component_id_mask		=	get_component_id_mask_df3,
+};
+
+static int dehash_addr_df35(struct addr_ctx *ctx)
+{
+	u8 hashed_bit, intlv_ctl_64k, intlv_ctl_2M, intlv_ctl_1G;
+	u8 num_intlv_bits = ctx->intlv_num_chan;
+	u32 i;
+
+	/* Read D18F0x3F8 (DfGlobalCtrl). */
+	if (df_indirect_read_broadcast(0, 0, 0x3F8, &ctx->tmp))
+		return -EINVAL;
+
+	intlv_ctl_64k = !!((ctx->tmp >> 20) & 0x1);
+	intlv_ctl_2M  = !!((ctx->tmp >> 21) & 0x1);
+	intlv_ctl_1G  = !!((ctx->tmp >> 22) & 0x1);
+
+	/*
+	 * CSSelect[0] = XOR of addr{8,  16, 21, 30};
+	 * CSSelect[1] = XOR of addr{9,  17, 22, 31};
+	 * CSSelect[2] = XOR of addr{10, 18, 23, 32};
+	 * CSSelect[3] = XOR of addr{11, 19, 24, 33}; - 16 and 32 channel only
+	 * CSSelect[4] = XOR of addr{12, 20, 25, 34}; - 32 channel only
+	 */
+	for (i = 0; i < num_intlv_bits; i++) {
+		hashed_bit =	((ctx->ret_addr >> (8 + i)) ^
+				((ctx->ret_addr >> (16 + i)) & intlv_ctl_64k) ^
+				((ctx->ret_addr >> (21 + i)) & intlv_ctl_2M) ^
+				((ctx->ret_addr >> (30 + i)) & intlv_ctl_1G));
+
+		hashed_bit &= BIT(0);
+		if (hashed_bit != ((ctx->ret_addr >> (8 + i)) & BIT(0)))
+			ctx->ret_addr ^= BIT(8 + i);
+	}
+
+	return 0;
+}
+
+static int get_intlv_mode_df35(struct addr_ctx *ctx)
+{
+	ctx->intlv_mode = (ctx->reg_base_addr >> 2) & 0x1F;
+
+	if (ctx->intlv_mode == HASH_COD4_2CH ||
+	    ctx->intlv_mode == HASH_COD2_4CH ||
+	    ctx->intlv_mode == HASH_COD1_8CH) {
+		ctx->make_space_for_cs_id	= make_space_for_cs_id_cod_hash;
+		ctx->insert_cs_id		= insert_cs_id_cod_hash;
+		ctx->dehash_addr		= dehash_addr_df3;
+	} else {
+		ctx->make_space_for_cs_id	= make_space_for_cs_id_simple;
+		ctx->insert_cs_id		= insert_cs_id_simple;
+		ctx->dehash_addr		= dehash_addr_df35;
+	}
+
+	return 0;
+}
+
+static void get_intlv_num_dies_df35(struct addr_ctx *ctx)
+{
+	ctx->intlv_num_dies  = (ctx->reg_base_addr >> 7) & 0x1;
+}
+
+static u8 get_die_id_shift_df35(struct addr_ctx *ctx)
+{
+	return ctx->node_id_shift;
+}
+
+static u8 get_socket_id_shift_df35(struct addr_ctx *ctx)
+{
+	return (ctx->reg_fab_id_mask1 >> 8) & 0xF;
+}
+
+static int get_masks_df35(struct addr_ctx *ctx)
+{
+	/* Read D18F1x150 (SystemFabricIdMask0). */
+	if (df_indirect_read_broadcast(0, 1, 0x150, &ctx->reg_fab_id_mask0))
+		return -EINVAL;
+
+	/* Read D18F1x154 (SystemFabricIdMask1). */
+	if (df_indirect_read_broadcast(0, 1, 0x154, &ctx->reg_fab_id_mask1))
+		return -EINVAL;
+
+	/* Read D18F1x158 (SystemFabricIdMask2). */
+	if (df_indirect_read_broadcast(0, 1, 0x158, &ctx->reg_fab_id_mask2))
+		return -EINVAL;
+
+	ctx->node_id_shift = ctx->reg_fab_id_mask1 & 0xF;
+
+	ctx->die_id_mask = ctx->reg_fab_id_mask2 & 0xFFFF;
+
+	ctx->socket_id_mask = (ctx->reg_fab_id_mask2 >> 16) & 0xFFFF;
+
+	return 0;
+}
+
+static u16 get_dst_fabric_id_df35(struct addr_ctx *ctx)
+{
+	return ctx->reg_limit_addr & 0xFFF;
+}
+
+/* Aldebaran nodes have an arbitrary UMC to CS mapping based on physical layout. */
+u8 umc_to_cs_mapping_aldebaran[] = {	28, 20, 24, 16, 12, 4, 8, 0,
+					6, 30, 2, 26, 22, 14, 18, 10,
+					19, 11, 15, 7, 3, 27, 31, 23,
+					9, 1, 5, 29, 25, 17, 21, 13};
+
+int get_umc_to_cs_mapping(struct addr_ctx *ctx)
+{
+	if (ctx->inst_id >= sizeof(umc_to_cs_mapping_aldebaran))
+		return -EINVAL;
+
+	ctx->inst_id = umc_to_cs_mapping_aldebaran[ctx->inst_id];
+
+	return 0;
+}
+
+static int get_cs_fabric_id_df35(struct addr_ctx *ctx)
+{
+	u16 nid = ctx->nid;
+
+	/* Special handling for GPU nodes.*/
+	if (nid >= amd_cpu_node_count()) {
+		if (get_umc_to_cs_mapping(ctx))
+			return -EINVAL;
+
+		/* Need to convert back to the hardware-provided Node ID. */
+		nid -= amd_cpu_node_count();
+		nid += amd_gpu_node_start_id();
+	}
+
+	ctx->cs_fabric_id = ctx->inst_id | (nid << ctx->node_id_shift);
+
+	return 0;
+}
+
+static u16 get_component_id_mask_df35(struct addr_ctx *ctx)
+{
+	return ctx->reg_fab_id_mask0 & 0xFFFF;
+}
+
+struct data_fabric_ops df3point5_ops = {
+	.get_hi_addr_offset		=	get_hi_addr_offset_df3,
+	.get_intlv_mode			=	get_intlv_mode_df35,
+	.get_intlv_addr_sel		=	get_intlv_addr_sel_df3,
+	.get_intlv_num_dies		=	get_intlv_num_dies_df35,
+	.get_intlv_num_sockets		=	get_intlv_num_sockets_df3,
+	.get_masks			=	get_masks_df35,
+	.get_die_id_shift		=	get_die_id_shift_df35,
+	.get_socket_id_shift		=	get_socket_id_shift_df35,
+	.get_dst_fabric_id		=	get_dst_fabric_id_df35,
+	.get_cs_fabric_id		=	get_cs_fabric_id_df35,
+	.get_component_id_mask		=	get_component_id_mask_df35,
+};
+
+struct data_fabric_ops *df_ops;
+
+static int get_blk_inst_cnt(struct addr_ctx *ctx)
+{
+	/* Read D18F0x40 (FabricBlockInstanceCount). */
+	if (df_indirect_read_broadcast(0, 0, 0x40, &ctx->tmp))
+		return -EINVAL;
+
+	ctx->num_blk_instances = ctx->tmp & 0xFF;
+
+	return 0;
+}
+
+static int get_dram_offset_reg(struct addr_ctx *ctx)
+{
+	/* Read D18F0x1B4 (DramOffset) */
+	if (df_indirect_read_instance(ctx->nid, 0, 0x1B4, ctx->inst_id, &ctx->reg_dram_offset))
+		return -EINVAL;
+
+	return 0;
+}
+
+static int remove_dram_offset(struct addr_ctx *ctx)
+{
+	if (get_dram_offset_reg(ctx))
+		return -EINVAL;
+
+	ctx->map_num = 0;
+
+	/* Remove HiAddrOffset from normalized address, if enabled: */
+	if (ctx->reg_dram_offset & BIT(0)) {
+		u64 hi_addr_offset = df_ops->get_hi_addr_offset(ctx);
+
+		if (ctx->ret_addr >= hi_addr_offset) {
+			ctx->ret_addr -= hi_addr_offset;
+			ctx->map_num = 1;
+		}
+	}
+
+	return 0;
+}
+
+static int get_dram_addr_map(struct addr_ctx *ctx)
+{
+	/* Read D18F0x110 (DramBaseAddress). */
+	if (df_indirect_read_instance(ctx->nid, 0, 0x110 + (8 * ctx->map_num),
+				      ctx->inst_id, &ctx->reg_base_addr))
+		return -EINVAL;
+
+	/* Check if address range is valid. */
+	if (!(ctx->reg_base_addr & BIT(0))) {
+		pr_debug("Invalid DramBaseAddress range: 0x%x.\n", ctx->reg_base_addr);
+		return -EINVAL;
+	}
+
+	/* Read D18F0x114 (DramLimitAddress). */
+	if (df_indirect_read_instance(ctx->nid, 0, 0x114 + (8 * ctx->map_num),
+				      ctx->inst_id, &ctx->reg_limit_addr))
+		return -EINVAL;
+
+	return 0;
+}
+
+static int get_intlv_addr_bit(struct addr_ctx *ctx)
+{
+	u8 intlv_addr_sel = df_ops->get_intlv_addr_sel(ctx);
+
+	/* {0, 1, 2, 3, 4} map to address bits {8, 9, 10, 11, 12} respectively */
+	if (intlv_addr_sel > 4) {
+		pr_debug("Invalid interleave address select %d.\n", intlv_addr_sel);
+		return -EINVAL;
+	}
+
+	ctx->intlv_addr_bit = intlv_addr_sel + 8;
+
+	return 0;
+}
+
+static void get_intlv_num_chan(struct addr_ctx *ctx)
+{
+	/* Save the log2(# of channels). */
+	switch (ctx->intlv_mode) {
+	case NONE:
+		ctx->intlv_num_chan = 0;
+		break;
+	case NOHASH_2CH:
+	case HASH_COD4_2CH:
+	case DF2_HASH_2CH:
+		ctx->intlv_num_chan = 1;
+		break;
+	case NOHASH_4CH:
+	case HASH_COD2_4CH:
+		ctx->intlv_num_chan = 2;
+		break;
+	case NOHASH_8CH:
+	case HASH_COD1_8CH:
+	case HASH_8CH:
+		ctx->intlv_num_chan = 3;
+		break;
+	case NOHASH_16CH:
+	case HASH_16CH:
+		ctx->intlv_num_chan = 4;
+		break;
+	case NOHASH_32CH:
+	case HASH_32CH:
+		ctx->intlv_num_chan = 5;
+		break;
+	default:
+		/* Valid interleaving modes where checked earlier. */
+		break;
+	}
+}
+
+static u8 calc_level_bits(u8 id, u8 level_mask, u8 shift, u8 mask, u8 num_bits)
+{
+	return (((id & level_mask) >> shift) & mask) << num_bits;
+}
+
+static int calculate_cs_id(struct addr_ctx *ctx)
+{
+	u16 dst_fabric_id = df_ops->get_dst_fabric_id(ctx);
+	u16 mask, num_intlv_bits = ctx->intlv_num_chan;
+
+	mask = df_ops->get_component_id_mask(ctx);
+	ctx->cs_id = (ctx->cs_fabric_id & mask) - (dst_fabric_id & mask);
+
+	mask = (1 << num_intlv_bits) - 1;
+	ctx->cs_id &= mask;
+
+	/* If interleaved over more than 1 die: */
+	if (ctx->intlv_num_dies) {
+		u8 die_id_shift = df_ops->get_die_id_shift(ctx);
+
+		mask = (1 << ctx->intlv_num_dies) - 1;
+
+		ctx->cs_id |= calc_level_bits(ctx->cs_fabric_id, ctx->die_id_mask,
+					      die_id_shift, mask, num_intlv_bits);
+
+		num_intlv_bits += ctx->intlv_num_dies;
+	}
+
+	/* If interleaved over more than 1 socket: */
+	if (ctx->intlv_num_sockets) {
+		u8 socket_id_shift = df_ops->get_socket_id_shift(ctx);
+
+		mask = (1 << ctx->intlv_num_sockets) - 1;
+
+		ctx->cs_id |= calc_level_bits(ctx->cs_fabric_id, ctx->socket_id_mask,
+					      socket_id_shift, mask, num_intlv_bits);
+	}
+
+	return 0;
+}
+
+static int denormalize_addr(struct addr_ctx *ctx)
+{
+	/* Return early if no interleaving. */
+	if (ctx->intlv_mode == NONE)
+		return 0;
+
+	if (get_intlv_addr_bit(ctx))
+		return -EINVAL;
+
+	get_intlv_num_chan(ctx);
+	df_ops->get_intlv_num_dies(ctx);
+	df_ops->get_intlv_num_sockets(ctx);
+
+	ctx->make_space_for_cs_id(ctx);
+
+	if (calculate_cs_id(ctx))
+		return -EINVAL;
+
+	ctx->insert_cs_id(ctx);
+
+	return 0;
+}
+
+static int add_base_and_hole(struct addr_ctx *ctx)
+{
+	u64 dram_base_addr = (ctx->reg_base_addr & GENMASK_ULL(31, 12)) << 16;
+
+	/* Add dram base address */
+	ctx->ret_addr += dram_base_addr;
+
+	/* If legacy MMIO hole enabled */
+	if (ctx->reg_base_addr & BIT(1)) {
+		u32 dram_hole_base;
+
+		if (df_indirect_read_broadcast(ctx->nid, 0, 0x104, &dram_hole_base))
+			return -EINVAL;
+
+		dram_hole_base &= GENMASK(31, 24);
+		if (ctx->ret_addr >= dram_hole_base)
+			ctx->ret_addr += (BIT_ULL(32) - dram_hole_base);
+	}
+
+	return 0;
+}
+
+static int addr_over_limit(struct addr_ctx *ctx)
+{
+	u64 dram_limit_addr  = ((ctx->reg_limit_addr & GENMASK_ULL(31, 12)) << 16)
+					| GENMASK_ULL(27, 0);
+
+	/* Is calculated system address above DRAM limit address? */
+	if (ctx->ret_addr > dram_limit_addr)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int find_ccm_instance_id(struct addr_ctx *ctx)
+{
+	for (ctx->inst_id = 0; ctx->inst_id < ctx->num_blk_instances; ctx->inst_id++) {
+		/* Read D18F0x44 (FabricBlockInstanceInformation0). */
+		if (df_indirect_read_instance(0, 0, 0x44, ctx->inst_id, &ctx->tmp))
+			return -EINVAL;
+
+		if (ctx->tmp == 0)
+			continue;
+
+		if ((ctx->tmp & 0xF) == 0)
+			return 0;
+	}
+
+	return -EINVAL;
+}
+
+#define DF_NUM_DRAM_MAPS_AVAILABLE  16
+static int find_map_reg_by_dstfabricid(struct addr_ctx *ctx)
+{
+	u16 node_id_mask = (ctx->reg_fab_id_mask0 >> 16) & 0xFFFF;
+	u16 dst_fabric_id;
+
+	for (ctx->map_num = 0; ctx->map_num < DF_NUM_DRAM_MAPS_AVAILABLE ; ctx->map_num++) {
+		if (get_dram_addr_map(ctx))
+			continue;
+
+		dst_fabric_id = df_ops->get_dst_fabric_id(ctx);
+
+		if ((dst_fabric_id & node_id_mask) == (ctx->cs_fabric_id & node_id_mask))
+			return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int umc_normaddr_to_sysaddr(u64 *addr, u16 nid, u8 df_inst_id)
+{
+	struct addr_ctx ctx;
+
+	if (!df_ops)
+		return -EINVAL;
+
+	memset(&ctx, 0, sizeof(ctx));
+
+	/* We start from the normalized address */
+	ctx.ret_addr = *addr;
+
+	ctx.nid = nid;
+	ctx.inst_id = df_inst_id;
+
+	if (df_ops == &df3point5_ops)
+		ctx.late_hole_remove = true;
+
+	if (get_blk_inst_cnt(&ctx))
+		return -EINVAL;
+
+	if (df_ops->get_masks(&ctx))
+		return -EINVAL;
+
+	if (df_ops->get_cs_fabric_id(&ctx))
+		return -EINVAL;
+
+	/* Special handling for GPU nodes.*/
+	if (ctx.nid >= amd_cpu_node_count()) {
+		if (find_ccm_instance_id(&ctx))
+			return -EINVAL;
+
+		if (find_map_reg_by_dstfabricid(&ctx))
+			return -EINVAL;
+	} else {
+		if (remove_dram_offset(&ctx))
+			return -EINVAL;
+
+		if (get_dram_addr_map(&ctx))
+			return -EINVAL;
+	}
+
+	if (df_ops->get_intlv_mode(&ctx))
+		return -EINVAL;
+
+	if (denormalize_addr(&ctx))
+		return -EINVAL;
+
+	if (!ctx.late_hole_remove && add_base_and_hole(&ctx))
+		return -EINVAL;
+
+	if (ctx.dehash_addr && ctx.dehash_addr(&ctx))
+		return -EINVAL;
+
+	if (ctx.late_hole_remove && add_base_and_hole(&ctx))
+		return -EINVAL;
+
+	if (addr_over_limit(&ctx))
+		return -EINVAL;
+
+	*addr = ctx.ret_addr;
+	return 0;
+}
+
 static int get_channel_from_ecc_syndrome(struct mem_ctl_info *, u16);
 
 /*
@@ -1123,6 +2020,20 @@ static void debug_display_dimm_sizes_df(struct amd64_pvt *pvt, u8 ctrl)
 	}
 }
 
+static void debug_display_dimm_sizes_gpu(struct amd64_pvt *pvt, u8 ctrl)
+{
+	int size, cs = 0, cs_mode;
+
+	edac_printk(KERN_DEBUG, EDAC_MC, "UMC%d chip selects:\n", ctrl);
+
+	cs_mode = CS_EVEN_PRIMARY | CS_ODD_PRIMARY;
+
+	for_each_chip_select(cs, ctrl, pvt) {
+		size = pvt->ops->dbam_to_cs(pvt, ctrl, cs_mode, cs);
+		amd64_info(EDAC_MC ": %d: %5dMB\n", cs, size);
+	}
+}
+
 static void __dump_misc_regs_df(struct amd64_pvt *pvt)
 {
 	struct amd64_umc *umc;
@@ -1167,6 +2078,27 @@ static void __dump_misc_regs_df(struct amd64_pvt *pvt)
 		 pvt->dhar, dhar_base(pvt));
 }
 
+static void __dump_misc_regs_gpu(struct amd64_pvt *pvt)
+{
+	struct amd64_umc *umc;
+	u32 i, umc_base;
+
+	for_each_umc(i) {
+		umc_base = get_umc_base(i);
+		umc = &pvt->umc[i];
+
+		edac_dbg(1, "UMC%d UMC cfg: 0x%x\n", i, umc->umc_cfg);
+		edac_dbg(1, "UMC%d SDP ctrl: 0x%x\n", i, umc->sdp_ctrl);
+		edac_dbg(1, "UMC%d ECC ctrl: 0x%x\n", i, umc->ecc_ctrl);
+		edac_dbg(1, "UMC%d All HBMs support ECC: yes\n", i);
+
+		debug_display_dimm_sizes_gpu(pvt, i);
+	}
+
+	edac_dbg(1, "F0x104 (DRAM Hole Address): 0x%08x, base: 0x%08x\n",
+		 pvt->dhar, dhar_base(pvt));
+}
+
 /* Display and decode various NB registers for debug purposes. */
 static void __dump_misc_regs(struct amd64_pvt *pvt)
 {
@@ -1204,10 +2136,7 @@ static void __dump_misc_regs(struct amd64_pvt *pvt)
 /* Display and decode various NB registers for debug purposes. */
 static void dump_misc_regs(struct amd64_pvt *pvt)
 {
-	if (pvt->umc)
-		__dump_misc_regs_df(pvt);
-	else
-		__dump_misc_regs(pvt);
+	pvt->ops->display_misc_regs(pvt);
 
 	edac_dbg(1, "  DramHoleValid: %s\n", dhar_valid(pvt) ? "yes" : "no");
 
@@ -1217,25 +2146,73 @@ static void dump_misc_regs(struct amd64_pvt *pvt)
 /*
  * See BKDG, F2x[1,0][5C:40], F2[1,0][6C:60]
  */
-static void prep_chip_selects(struct amd64_pvt *pvt)
+static void k8_prep_chip_selects(struct amd64_pvt *pvt)
 {
 	if (pvt->fam == 0xf && pvt->ext_model < K8_REV_F) {
 		pvt->csels[0].b_cnt = pvt->csels[1].b_cnt = 8;
 		pvt->csels[0].m_cnt = pvt->csels[1].m_cnt = 8;
-	} else if (pvt->fam == 0x15 && pvt->model == 0x30) {
-		pvt->csels[0].b_cnt = pvt->csels[1].b_cnt = 4;
-		pvt->csels[0].m_cnt = pvt->csels[1].m_cnt = 2;
-	} else if (pvt->fam >= 0x17) {
-		int umc;
-
-		for_each_umc(umc) {
-			pvt->csels[umc].b_cnt = 4;
-			pvt->csels[umc].m_cnt = 2;
-		}
-
-	} else {
+	} else if (pvt->fam == 0xf && pvt->ext_model >= K8_REV_F) {
 		pvt->csels[0].b_cnt = pvt->csels[1].b_cnt = 8;
 		pvt->csels[0].m_cnt = pvt->csels[1].m_cnt = 4;
+	}
+}
+
+static void f15m30_prep_chip_selects(struct amd64_pvt *pvt)
+{
+	pvt->csels[0].b_cnt = pvt->csels[1].b_cnt = 4;
+	pvt->csels[0].m_cnt = pvt->csels[1].m_cnt = 2;
+}
+
+static void default_prep_chip_selects(struct amd64_pvt *pvt)
+{
+	pvt->csels[0].b_cnt = pvt->csels[1].b_cnt = 8;
+	pvt->csels[0].m_cnt = pvt->csels[1].m_cnt = 4;
+}
+
+static void f17_prep_chip_selects(struct amd64_pvt *pvt)
+{
+	int umc;
+
+	for_each_umc(umc) {
+		pvt->csels[umc].b_cnt = 4;
+		pvt->csels[umc].m_cnt = 2;
+	}
+}
+
+static void gpu_prep_chip_selects(struct amd64_pvt *pvt)
+{
+	int umc;
+
+	for_each_umc(umc) {
+		pvt->csels[umc].b_cnt = 8;
+		pvt->csels[umc].m_cnt = 8;
+	}
+}
+
+static void read_umc_base_mask_gpu(struct amd64_pvt *pvt)
+{
+	u32 base_reg, mask_reg;
+	u32 *base, *mask;
+	int umc, cs;
+
+	for_each_umc(umc) {
+		for_each_chip_select(cs, umc, pvt) {
+			base_reg = get_umc_base_gpu(umc, cs) + UMCCH_BASE_ADDR;
+			base = &pvt->csels[umc].csbases[cs];
+
+			if (!amd_smn_read(pvt->mc_node_id, base_reg, base)) {
+				edac_dbg(0, "  DCSB%d[%d]=0x%08x reg: 0x%x\n",
+					 umc, cs, *base, base_reg);
+			}
+
+			mask_reg = get_umc_base_gpu(umc, cs) + UMCCH_ADDR_MASK;
+			mask = &pvt->csels[umc].csmasks[cs];
+
+			if (!amd_smn_read(pvt->mc_node_id, mask_reg, mask)) {
+				edac_dbg(0, "  DCSM%d[%d]=0x%08x reg: 0x%x\n",
+					 umc, cs, *mask, mask_reg);
+			}
+		}
 	}
 }
 
@@ -1296,11 +2273,6 @@ static void read_umc_base_mask(struct amd64_pvt *pvt)
 static void read_dct_base_mask(struct amd64_pvt *pvt)
 {
 	int cs;
-
-	prep_chip_selects(pvt);
-
-	if (pvt->umc)
-		return read_umc_base_mask(pvt);
 
 	for_each_chip_select(cs, 0, pvt) {
 		int reg0   = DCSB0 + (cs * 4);
@@ -1742,6 +2714,19 @@ static int f17_early_channel_count(struct amd64_pvt *pvt)
 	return channels;
 }
 
+static int gpu_early_channel_count(struct amd64_pvt *pvt)
+{
+	int i, channels = 0;
+
+	/* The memory channels in case of GPUs are fully populated */
+	for_each_umc(i)
+		channels += pvt->csels[i].b_cnt;
+
+	amd64_info("MCT channel count: %d\n", channels);
+
+	return channels;
+}
+
 static int ddr3_cs_size(unsigned i, bool dct_width)
 {
 	unsigned shift = 0;
@@ -1869,37 +2854,12 @@ static int f16_dbam_to_chip_select(struct amd64_pvt *pvt, u8 dct,
 		return ddr3_cs_size(cs_mode, false);
 }
 
-static int f17_addr_mask_to_cs_size(struct amd64_pvt *pvt, u8 umc,
-				    unsigned int cs_mode, int csrow_nr)
+static int __addr_mask_to_cs_size(u32 addr_mask_orig, unsigned int cs_mode,
+				  int csrow_nr, int dimm)
 {
-	u32 addr_mask_orig, addr_mask_deinterleaved;
 	u32 msb, weight, num_zero_bits;
-	int dimm, size = 0;
-
-	/* No Chip Selects are enabled. */
-	if (!cs_mode)
-		return size;
-
-	/* Requested size of an even CS but none are enabled. */
-	if (!(cs_mode & CS_EVEN) && !(csrow_nr & 1))
-		return size;
-
-	/* Requested size of an odd CS but none are enabled. */
-	if (!(cs_mode & CS_ODD) && (csrow_nr & 1))
-		return size;
-
-	/*
-	 * There is one mask per DIMM, and two Chip Selects per DIMM.
-	 *	CS0 and CS1 -> DIMM0
-	 *	CS2 and CS3 -> DIMM1
-	 */
-	dimm = csrow_nr >> 1;
-
-	/* Asymmetric dual-rank DIMM support. */
-	if ((csrow_nr & 1) && (cs_mode & CS_ODD_SECONDARY))
-		addr_mask_orig = pvt->csels[umc].csmasks_sec[dimm];
-	else
-		addr_mask_orig = pvt->csels[umc].csmasks[dimm];
+	u32 addr_mask_deinterleaved;
+	int size = 0;
 
 	/*
 	 * The number of zero bits in the mask is equal to the number of bits
@@ -1928,6 +2888,48 @@ static int f17_addr_mask_to_cs_size(struct amd64_pvt *pvt, u8 umc,
 
 	/* Return size in MBs. */
 	return size >> 10;
+}
+
+static int f17_addr_mask_to_cs_size(struct amd64_pvt *pvt, u8 umc,
+				    unsigned int cs_mode, int csrow_nr)
+{
+	u32 addr_mask_orig;
+	int dimm, size = 0;
+
+	/* No Chip Selects are enabled. */
+	if (!cs_mode)
+		return size;
+
+	/* Requested size of an even CS but none are enabled. */
+	if (!(cs_mode & CS_EVEN) && !(csrow_nr & 1))
+		return size;
+
+	/* Requested size of an odd CS but none are enabled. */
+	if (!(cs_mode & CS_ODD) && (csrow_nr & 1))
+		return size;
+
+	/*
+	 * There is one mask per DIMM, and two Chip Selects per DIMM.
+	 *	CS0 and CS1 -> DIMM0
+	 *	CS2 and CS3 -> DIMM1
+	 */
+	dimm = csrow_nr >> 1;
+
+	/* Asymmetric dual-rank DIMM support. */
+	if ((csrow_nr & 1) && (cs_mode & CS_ODD_SECONDARY))
+		addr_mask_orig = pvt->csels[umc].csmasks_sec[dimm];
+	else
+		addr_mask_orig = pvt->csels[umc].csmasks[dimm];
+
+	return __addr_mask_to_cs_size(addr_mask_orig, cs_mode, csrow_nr, dimm);
+}
+
+static int gpu_addr_mask_to_cs_size(struct amd64_pvt *pvt, u8 umc,
+				    unsigned int cs_mode, int csrow_nr)
+{
+	u32 addr_mask_orig = pvt->csels[umc].csmasks[csrow_nr];
+
+	return __addr_mask_to_cs_size(addr_mask_orig, cs_mode, csrow_nr, csrow_nr >> 1);
 }
 
 static void read_dram_ctl_register(struct amd64_pvt *pvt)
@@ -2512,144 +3514,197 @@ static void debug_display_dimm_sizes(struct amd64_pvt *pvt, u8 ctrl)
 	}
 }
 
+/* Prototypes for family specific ops routines */
+static int init_csrows(struct mem_ctl_info *mci);
+static int init_csrows_df(struct mem_ctl_info *mci);
+static int init_csrows_gpu(struct mem_ctl_info *mci);
+static void __read_mc_regs_df(struct amd64_pvt *pvt);
+static void __read_mc_regs_gpu(struct amd64_pvt *pvt);
+static void update_umc_err_info(struct mce *m, struct err_info *err);
+static void update_umc_err_info_gpu(struct mce *m, struct err_info *err);
+
+static const struct low_ops k8_ops = {
+	.early_channel_count	= k8_early_channel_count,
+	.map_sysaddr_to_csrow	= k8_map_sysaddr_to_csrow,
+	.dbam_to_cs		= k8_dbam_to_chip_select,
+	.prep_chip_select	= k8_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f10_ops = {
+	.early_channel_count	= f1x_early_channel_count,
+	.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
+	.dbam_to_cs		= f10_dbam_to_chip_select,
+	.prep_chip_select	= default_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f15_ops = {
+	.early_channel_count	= f1x_early_channel_count,
+	.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
+	.dbam_to_cs		= f15_dbam_to_chip_select,
+	.prep_chip_select	= default_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f15m30_ops = {
+	.early_channel_count	= f1x_early_channel_count,
+	.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
+	.dbam_to_cs		= f16_dbam_to_chip_select,
+	.prep_chip_select	= f15m30_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f15m60_ops = {
+	.early_channel_count	= f1x_early_channel_count,
+	.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
+	.dbam_to_cs		= f15_m60h_dbam_to_chip_select,
+	.prep_chip_select	= default_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f16_ops = {
+	.early_channel_count	= f1x_early_channel_count,
+	.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
+	.dbam_to_cs		= f16_dbam_to_chip_select,
+	.prep_chip_select	= default_prep_chip_selects,
+	.get_base_mask		= read_dct_base_mask,
+	.display_misc_regs	= __dump_misc_regs,
+	.populate_csrows	= init_csrows,
+};
+
+static const struct low_ops f17_ops = {
+	.early_channel_count	= f17_early_channel_count,
+	.dbam_to_cs		= f17_addr_mask_to_cs_size,
+	.prep_chip_select	= f17_prep_chip_selects,
+	.get_base_mask		= read_umc_base_mask,
+	.display_misc_regs	= __dump_misc_regs_df,
+	.get_mc_regs		= __read_mc_regs_df,
+	.populate_csrows	= init_csrows_df,
+	.get_umc_err_info	= update_umc_err_info,
+};
+
+static const struct low_ops gpu_ops = {
+	.early_channel_count	= gpu_early_channel_count,
+	.dbam_to_cs		= gpu_addr_mask_to_cs_size,
+	.prep_chip_select	= gpu_prep_chip_selects,
+	.get_base_mask		= read_umc_base_mask_gpu,
+	.display_misc_regs	= __dump_misc_regs_gpu,
+	.get_mc_regs		= __read_mc_regs_gpu,
+	.populate_csrows	= init_csrows_gpu,
+	.get_umc_err_info	= update_umc_err_info_gpu,
+};
+
 static struct amd64_family_type family_types[] = {
 	[K8_CPUS] = {
 		.ctl_name = "K8",
 		.f1_id = PCI_DEVICE_ID_AMD_K8_NB_ADDRMAP,
 		.f2_id = PCI_DEVICE_ID_AMD_K8_NB_MEMCTL,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= k8_early_channel_count,
-			.map_sysaddr_to_csrow	= k8_map_sysaddr_to_csrow,
-			.dbam_to_cs		= k8_dbam_to_chip_select,
-		}
+		.ops = k8_ops,
 	},
 	[F10_CPUS] = {
 		.ctl_name = "F10h",
 		.f1_id = PCI_DEVICE_ID_AMD_10H_NB_MAP,
 		.f2_id = PCI_DEVICE_ID_AMD_10H_NB_DRAM,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f10_dbam_to_chip_select,
-		}
+		.ops = f10_ops,
 	},
 	[F15_CPUS] = {
 		.ctl_name = "F15h",
 		.f1_id = PCI_DEVICE_ID_AMD_15H_NB_F1,
 		.f2_id = PCI_DEVICE_ID_AMD_15H_NB_F2,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f15_dbam_to_chip_select,
-		}
+		.ops = f15_ops,
 	},
 	[F15_M30H_CPUS] = {
 		.ctl_name = "F15h_M30h",
 		.f1_id = PCI_DEVICE_ID_AMD_15H_M30H_NB_F1,
 		.f2_id = PCI_DEVICE_ID_AMD_15H_M30H_NB_F2,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f16_dbam_to_chip_select,
-		}
+		.ops = f15m30_ops,
 	},
 	[F15_M60H_CPUS] = {
 		.ctl_name = "F15h_M60h",
 		.f1_id = PCI_DEVICE_ID_AMD_15H_M60H_NB_F1,
 		.f2_id = PCI_DEVICE_ID_AMD_15H_M60H_NB_F2,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f15_m60h_dbam_to_chip_select,
-		}
+		.ops = f15m60_ops,
 	},
 	[F16_CPUS] = {
 		.ctl_name = "F16h",
 		.f1_id = PCI_DEVICE_ID_AMD_16H_NB_F1,
 		.f2_id = PCI_DEVICE_ID_AMD_16H_NB_F2,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f16_dbam_to_chip_select,
-		}
+		.ops = f16_ops,
 	},
 	[F16_M30H_CPUS] = {
 		.ctl_name = "F16h_M30h",
 		.f1_id = PCI_DEVICE_ID_AMD_16H_M30H_NB_F1,
 		.f2_id = PCI_DEVICE_ID_AMD_16H_M30H_NB_F2,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f1x_early_channel_count,
-			.map_sysaddr_to_csrow	= f1x_map_sysaddr_to_csrow,
-			.dbam_to_cs		= f16_dbam_to_chip_select,
-		}
+		.ops = f16_ops,
 	},
 	[F17_CPUS] = {
 		.ctl_name = "F17h",
 		.f0_id = PCI_DEVICE_ID_AMD_17H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_17H_DF_F6,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
 	[F17_M10H_CPUS] = {
 		.ctl_name = "F17h_M10h",
 		.f0_id = PCI_DEVICE_ID_AMD_17H_M10H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_17H_M10H_DF_F6,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
 	[F17_M30H_CPUS] = {
 		.ctl_name = "F17h_M30h",
 		.f0_id = PCI_DEVICE_ID_AMD_17H_M30H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_17H_M30H_DF_F6,
 		.max_mcs = 8,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
 	[F17_M60H_CPUS] = {
 		.ctl_name = "F17h_M60h",
 		.f0_id = PCI_DEVICE_ID_AMD_17H_M60H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_17H_M60H_DF_F6,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
 	[F17_M70H_CPUS] = {
 		.ctl_name = "F17h_M70h",
 		.f0_id = PCI_DEVICE_ID_AMD_17H_M70H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_17H_M70H_DF_F6,
 		.max_mcs = 2,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
 	[F19_CPUS] = {
 		.ctl_name = "F19h",
 		.f0_id = PCI_DEVICE_ID_AMD_19H_DF_F0,
 		.f6_id = PCI_DEVICE_ID_AMD_19H_DF_F6,
 		.max_mcs = 8,
-		.ops = {
-			.early_channel_count	= f17_early_channel_count,
-			.dbam_to_cs		= f17_addr_mask_to_cs_size,
-		}
+		.ops = f17_ops,
 	},
+	[ALDEBARAN_GPUS] = {
+		.ctl_name = "ALDEBARAN",
+		.f0_id = PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F0,
+		.f6_id = PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F6,
+		.max_mcs = 4,
+		.ops = gpu_ops,
+	},
+
 };
 
 /*
@@ -2899,19 +3954,48 @@ static inline void decode_bus_error(int node_id, struct mce *m)
  * Currently, we can derive the channel number by looking at the 6th nibble in
  * the instance_id. For example, instance_id=0xYXXXXX where Y is the channel
  * number.
+ *
+ * csrow can be derived from the lower 3 bits of MCA_SYND value.
  */
-static int find_umc_channel(struct mce *m)
+static void update_umc_err_info(struct mce *m, struct err_info *err)
 {
-	return (m->ipid & GENMASK(31, 0)) >> 20;
+	err->channel = (m->ipid & GENMASK(31, 0)) >> 20;
+	err->csrow = m->synd & 0x7;
+}
+
+/*
+ * The CPUs have one channel per UMC, So  UMC number is equivalent to a
+ * channel number. The GPUs have 8 channels per UMC, so the UMC number no
+ * longer works as a channel number.
+ * The channel number within a GPU UMC is given in MCA_IPID[15:12].
+ * However, the IDs are split such that two UMC values go to one UMC, and
+ * the channel numbers are split in two groups of four.
+ *
+ * Refer comment on get_umc_base_gpu() from amd64_edac.h
+ *
+ * For example,
+ * UMC0 CH[3:0] = 0x0005[3:0]000
+ * UMC0 CH[7:4] = 0x0015[3:0]000
+ * UMC1 CH[3:0] = 0x0025[3:0]000
+ * UMC1 CH[7:4] = 0x0035[3:0]000
+ */
+static void update_umc_err_info_gpu(struct mce *m, struct err_info *err)
+{
+	u8 ch = (m->ipid & GENMASK(31, 0)) >> 20;
+	u8 phy = ((m->ipid >> 12) & 0xf);
+
+	err->channel = ch % 2 ? phy + 4 : phy;
+	err->csrow = phy;
 }
 
 static void decode_umc_error(int node_id, struct mce *m)
 {
 	u8 ecc_type = (m->status >> 45) & 0x3;
 	struct mem_ctl_info *mci;
+	u64 sys_addr = m->addr;
 	struct amd64_pvt *pvt;
 	struct err_info err;
-	u64 sys_addr;
+	u8 df_inst_id;
 
 	mci = edac_mc_find(node_id);
 	if (!mci)
@@ -2923,8 +4007,6 @@ static void decode_umc_error(int node_id, struct mce *m)
 
 	if (m->status & MCI_STATUS_DEFERRED)
 		ecc_type = 3;
-
-	err.channel = find_umc_channel(m);
 
 	if (!(m->status & MCI_STATUS_SYNDV)) {
 		err.err_code = ERR_SYND;
@@ -2940,9 +4022,19 @@ static void decode_umc_error(int node_id, struct mce *m)
 			err.err_code = ERR_CHANNEL;
 	}
 
-	err.csrow = m->synd & 0x7;
+	pvt->ops->get_umc_err_info(m, &err);
 
-	if (umc_normaddr_to_sysaddr(m->addr, pvt->mc_node_id, err.channel, &sys_addr)) {
+	/*
+	 * GPU node has #phys[X] which has #channels[Y] each.
+	 * On GPUs, df_inst_id = [X] * num_ch_per_phy + [Y].
+	 * On CPUs, "Channel"="UMC Number"="DF Instance ID".
+	 */
+	if (pvt->is_gpu)
+		df_inst_id = (err.csrow * pvt->channel_count / mci->nr_csrows) + err.channel;
+	else
+		df_inst_id = err.channel;
+
+	if (umc_normaddr_to_sysaddr(&sys_addr, pvt->mc_node_id, df_inst_id)) {
 		err.err_code = ERR_NORM_ADDR;
 		goto log_error;
 	}
@@ -3081,6 +4173,23 @@ static void __read_mc_regs_df(struct amd64_pvt *pvt)
 	}
 }
 
+static void __read_mc_regs_gpu(struct amd64_pvt *pvt)
+{
+	u8 nid = pvt->mc_node_id;
+	struct amd64_umc *umc;
+	u32 i, umc_base;
+
+	/* Read registers from each UMC */
+	for_each_umc(i) {
+		umc_base = get_umc_base_gpu(i, 0);
+		umc = &pvt->umc[i];
+
+		amd_smn_read(nid, umc_base + UMCCH_UMC_CFG, &umc->umc_cfg);
+		amd_smn_read(nid, umc_base + UMCCH_SDP_CTRL, &umc->sdp_ctrl);
+		amd_smn_read(nid, umc_base + UMCCH_ECC_CTRL, &umc->ecc_ctrl);
+	}
+}
+
 /*
  * Retrieve the hardware registers of the memory controller (this includes the
  * 'Address Map' and 'Misc' device regs)
@@ -3106,8 +4215,9 @@ static void read_mc_regs(struct amd64_pvt *pvt)
 		edac_dbg(0, "  TOP_MEM2 disabled\n");
 	}
 
-	if (pvt->umc) {
-		__read_mc_regs_df(pvt);
+	if (pvt->ops->get_mc_regs) {
+		pvt->ops->get_mc_regs(pvt);
+
 		amd64_read_pci_cfg(pvt->F0, DF_DHAR, &pvt->dhar);
 
 		goto skip;
@@ -3154,12 +4264,17 @@ static void read_mc_regs(struct amd64_pvt *pvt)
 	}
 
 skip:
-	read_dct_base_mask(pvt);
+	pvt->ops->prep_chip_select(pvt);
+
+	if (pvt->ops->get_base_mask)
+		pvt->ops->get_base_mask(pvt);
 
 	determine_memory_type(pvt);
 	edac_dbg(1, "  DIMM type: %s\n", edac_mem_types[pvt->dram_type]);
 
-	determine_ecc_sym_sz(pvt);
+	/* ECC symbol size is not available on GPU nodes */
+	if (!pvt->is_gpu)
+		determine_ecc_sym_sz(pvt);
 }
 
 /*
@@ -3206,7 +4321,10 @@ static u32 get_csrow_nr_pages(struct amd64_pvt *pvt, u8 dct, int csrow_nr_orig)
 		csrow_nr >>= 1;
 		cs_mode = DBAM_DIMM(csrow_nr, dbam);
 	} else {
-		cs_mode = f17_get_cs_mode(csrow_nr >> 1, dct, pvt);
+		if (pvt->is_gpu)
+			cs_mode = CS_EVEN_PRIMARY | CS_ODD_PRIMARY;
+		else
+			cs_mode = f17_get_cs_mode(csrow_nr >> 1, dct, pvt);
 	}
 
 	nr_pages   = pvt->ops->dbam_to_cs(pvt, dct, cs_mode, csrow_nr);
@@ -3263,6 +4381,35 @@ static int init_csrows_df(struct mem_ctl_info *mci)
 	return empty;
 }
 
+static int init_csrows_gpu(struct mem_ctl_info *mci)
+{
+	struct amd64_pvt *pvt = mci->pvt_info;
+	struct dimm_info *dimm;
+	int empty = 1;
+	u8 umc, cs;
+
+	for_each_umc(umc) {
+		for_each_chip_select(cs, umc, pvt) {
+			if (!csrow_enabled(cs, umc, pvt))
+				continue;
+
+			empty = 0;
+			dimm = mci->csrows[umc]->channels[cs]->dimm;
+
+			edac_dbg(1, "MC node: %d, csrow: %d\n",
+				 pvt->mc_node_id, cs);
+
+			dimm->nr_pages = get_csrow_nr_pages(pvt, umc, cs);
+			dimm->mtype = MEM_HBM2;
+			dimm->edac_mode = EDAC_SECDED;
+			dimm->dtype = DEV_X16;
+			dimm->grain = 64;
+		}
+	}
+
+	return empty;
+}
+
 /*
  * Initialize the array of csrow attribute instances, based on the values
  * from pci config hardware registers.
@@ -3276,9 +4423,6 @@ static int init_csrows(struct mem_ctl_info *mci)
 	int i, j, empty = 1;
 	int nr_pages = 0;
 	u32 val;
-
-	if (pvt->umc)
-		return init_csrows_df(mci);
 
 	amd64_read_pci_cfg(pvt->F3, NBCFG, &val);
 
@@ -3507,6 +4651,10 @@ static bool ecc_enabled(struct amd64_pvt *pvt)
 	u8 ecc_en = 0, i;
 	u32 value;
 
+	/* ECC is enabled by default on GPU nodes */
+	if (pvt->is_gpu)
+		return true;
+
 	if (boot_cpu_data.x86 >= 0x17) {
 		u8 umc_en_mask = 0, ecc_en_mask = 0;
 		struct amd64_umc *umc;
@@ -3590,7 +4738,10 @@ static void setup_mci_misc_attrs(struct mem_ctl_info *mci)
 	mci->edac_ctl_cap	= EDAC_FLAG_NONE;
 
 	if (pvt->umc) {
-		f17h_determine_edac_ctl_cap(mci, pvt);
+		if (pvt->is_gpu)
+			mci->edac_ctl_cap |= EDAC_FLAG_SECDED;
+		else
+			f17h_determine_edac_ctl_cap(mci, pvt);
 	} else {
 		if (pvt->nbcap & NBCAP_SECDED)
 			mci->edac_ctl_cap |= EDAC_FLAG_SECDED;
@@ -3601,7 +4752,7 @@ static void setup_mci_misc_attrs(struct mem_ctl_info *mci)
 
 	mci->edac_cap		= determine_edac_cap(pvt);
 	mci->mod_name		= EDAC_MOD_STR;
-	mci->ctl_name		= fam_type->ctl_name;
+	mci->ctl_name		= pvt->fam_type->ctl_name;
 	mci->dev_name		= pci_name(pvt->F3);
 	mci->ctl_page_to_phys	= NULL;
 
@@ -3622,65 +4773,70 @@ static struct amd64_family_type *per_family_init(struct amd64_pvt *pvt)
 
 	switch (pvt->fam) {
 	case 0xf:
-		fam_type	= &family_types[K8_CPUS];
+		pvt->fam_type	= &family_types[K8_CPUS];
 		pvt->ops	= &family_types[K8_CPUS].ops;
 		break;
 
 	case 0x10:
-		fam_type	= &family_types[F10_CPUS];
+		pvt->fam_type	= &family_types[F10_CPUS];
 		pvt->ops	= &family_types[F10_CPUS].ops;
 		break;
 
 	case 0x15:
 		if (pvt->model == 0x30) {
-			fam_type = &family_types[F15_M30H_CPUS];
+			pvt->fam_type = &family_types[F15_M30H_CPUS];
 			pvt->ops = &family_types[F15_M30H_CPUS].ops;
 			break;
 		} else if (pvt->model == 0x60) {
-			fam_type = &family_types[F15_M60H_CPUS];
+			pvt->fam_type = &family_types[F15_M60H_CPUS];
 			pvt->ops = &family_types[F15_M60H_CPUS].ops;
 			break;
 		/* Richland is only client */
 		} else if (pvt->model == 0x13) {
 			return NULL;
 		} else {
-			fam_type	= &family_types[F15_CPUS];
+			pvt->fam_type	= &family_types[F15_CPUS];
 			pvt->ops	= &family_types[F15_CPUS].ops;
 		}
 		break;
 
 	case 0x16:
 		if (pvt->model == 0x30) {
-			fam_type = &family_types[F16_M30H_CPUS];
+			pvt->fam_type = &family_types[F16_M30H_CPUS];
 			pvt->ops = &family_types[F16_M30H_CPUS].ops;
 			break;
 		}
-		fam_type	= &family_types[F16_CPUS];
+		pvt->fam_type	= &family_types[F16_CPUS];
 		pvt->ops	= &family_types[F16_CPUS].ops;
 		break;
 
 	case 0x17:
 		if (pvt->model >= 0x10 && pvt->model <= 0x2f) {
-			fam_type = &family_types[F17_M10H_CPUS];
+			pvt->fam_type = &family_types[F17_M10H_CPUS];
 			pvt->ops = &family_types[F17_M10H_CPUS].ops;
+			df_ops	 = &df2_ops;
 			break;
 		} else if (pvt->model >= 0x30 && pvt->model <= 0x3f) {
-			fam_type = &family_types[F17_M30H_CPUS];
+			pvt->fam_type = &family_types[F17_M30H_CPUS];
 			pvt->ops = &family_types[F17_M30H_CPUS].ops;
+			df_ops	 = &df3_ops;
 			break;
 		} else if (pvt->model >= 0x60 && pvt->model <= 0x6f) {
-			fam_type = &family_types[F17_M60H_CPUS];
+			pvt->fam_type = &family_types[F17_M60H_CPUS];
 			pvt->ops = &family_types[F17_M60H_CPUS].ops;
+			df_ops	 = &df3_ops;
 			break;
 		} else if (pvt->model >= 0x70 && pvt->model <= 0x7f) {
-			fam_type = &family_types[F17_M70H_CPUS];
+			pvt->fam_type = &family_types[F17_M70H_CPUS];
 			pvt->ops = &family_types[F17_M70H_CPUS].ops;
+			df_ops	 = &df3_ops;
 			break;
 		}
 		fallthrough;
 	case 0x18:
-		fam_type	= &family_types[F17_CPUS];
+		pvt->fam_type	= &family_types[F17_CPUS];
 		pvt->ops	= &family_types[F17_CPUS].ops;
+		df_ops		= &df2_ops;
 
 		if (pvt->fam == 0x18)
 			family_types[F17_CPUS].ctl_name = "F18h";
@@ -3688,14 +4844,28 @@ static struct amd64_family_type *per_family_init(struct amd64_pvt *pvt)
 
 	case 0x19:
 		if (pvt->model >= 0x20 && pvt->model <= 0x2f) {
-			fam_type = &family_types[F17_M70H_CPUS];
+			pvt->fam_type = &family_types[F17_M70H_CPUS];
 			pvt->ops = &family_types[F17_M70H_CPUS].ops;
-			fam_type->ctl_name = "F19h_M20h";
+			pvt->fam_type->ctl_name = "F19h_M20h";
+			df_ops	 = &df3_ops;
 			break;
+		} else if (pvt->model >= 0x30 && pvt->model <= 0x3f) {
+			if (pvt->mc_node_id >= amd_cpu_node_count()) {
+				pvt->fam_type = &family_types[ALDEBARAN_GPUS];
+				pvt->ops = &family_types[ALDEBARAN_GPUS].ops;
+				pvt->is_gpu = true;
+			} else {
+				pvt->fam_type = &family_types[F19_CPUS];
+				pvt->ops = &family_types[F19_CPUS].ops;
+				family_types[F19_CPUS].ctl_name = "F19h_M30h";
+			}
+			df_ops	= &df3point5_ops;
+		} else {
+			pvt->fam_type	= &family_types[F19_CPUS];
+			pvt->ops	= &family_types[F19_CPUS].ops;
+			family_types[F19_CPUS].ctl_name = "F19h";
+			df_ops		= &df3_ops;
 		}
-		fam_type	= &family_types[F19_CPUS];
-		pvt->ops	= &family_types[F19_CPUS].ops;
-		family_types[F19_CPUS].ctl_name = "F19h";
 		break;
 
 	default:
@@ -3703,7 +4873,21 @@ static struct amd64_family_type *per_family_init(struct amd64_pvt *pvt)
 		return NULL;
 	}
 
-	return fam_type;
+	/* ops required for all the families */
+	if (!pvt->ops->early_channel_count || !pvt->ops->dbam_to_cs ||
+	    !pvt->ops->prep_chip_select || !pvt->ops->get_base_mask ||
+	    !pvt->ops->display_misc_regs || !pvt->ops->populate_csrows) {
+		edac_dbg(1, "Common helper routines not defined.\n");
+		return NULL;
+	}
+
+	/* ops required for families 17h and later */
+	if (pvt->fam >= 0x17 && (!pvt->ops->get_umc_err_info || !pvt->ops->get_mc_regs)) {
+		edac_dbg(1, "Platform specific helper routines not defined.\n");
+		return NULL;
+	}
+
+	return pvt->fam_type;
 }
 
 static const struct attribute_group *amd64_edac_attr_groups[] = {
@@ -3720,15 +4904,15 @@ static int hw_info_get(struct amd64_pvt *pvt)
 	int ret;
 
 	if (pvt->fam >= 0x17) {
-		pvt->umc = kcalloc(fam_type->max_mcs, sizeof(struct amd64_umc), GFP_KERNEL);
+		pvt->umc = kcalloc(pvt->fam_type->max_mcs, sizeof(struct amd64_umc), GFP_KERNEL);
 		if (!pvt->umc)
 			return -ENOMEM;
 
-		pci_id1 = fam_type->f0_id;
-		pci_id2 = fam_type->f6_id;
+		pci_id1 = pvt->fam_type->f0_id;
+		pci_id2 = pvt->fam_type->f6_id;
 	} else {
-		pci_id1 = fam_type->f1_id;
-		pci_id2 = fam_type->f2_id;
+		pci_id1 = pvt->fam_type->f1_id;
+		pci_id2 = pvt->fam_type->f2_id;
 	}
 
 	ret = reserve_mc_sibling_devs(pvt, pci_id1, pci_id2);
@@ -3763,9 +4947,10 @@ static int init_one_instance(struct amd64_pvt *pvt)
 	if (pvt->channel_count < 0)
 		return ret;
 
+	/* Define layers for CPU and GPU nodes */
 	ret = -ENOMEM;
 	layers[0].type = EDAC_MC_LAYER_CHIP_SELECT;
-	layers[0].size = pvt->csels[0].b_cnt;
+	layers[0].size = pvt->is_gpu ? pvt->fam_type->max_mcs : pvt->csels[0].b_cnt;
 	layers[0].is_virt_csrow = true;
 	layers[1].type = EDAC_MC_LAYER_CHANNEL;
 
@@ -3774,7 +4959,7 @@ static int init_one_instance(struct amd64_pvt *pvt)
 	 * only one channel. Also, this simplifies handling later for the price
 	 * of a couple of KBs tops.
 	 */
-	layers[1].size = fam_type->max_mcs;
+	layers[1].size = pvt->is_gpu ? pvt->csels[0].b_cnt : pvt->fam_type->max_mcs;
 	layers[1].is_virt_csrow = false;
 
 	mci = edac_mc_alloc(pvt->mc_node_id, ARRAY_SIZE(layers), layers, 0);
@@ -3786,7 +4971,7 @@ static int init_one_instance(struct amd64_pvt *pvt)
 
 	setup_mci_misc_attrs(mci);
 
-	if (init_csrows(mci))
+	if (pvt->ops->populate_csrows(mci))
 		mci->edac_cap = EDAC_FLAG_NONE;
 
 	ret = -ENODEV;
@@ -3804,7 +4989,7 @@ static bool instance_has_memory(struct amd64_pvt *pvt)
 	bool cs_enabled = false;
 	int cs = 0, dct = 0;
 
-	for (dct = 0; dct < fam_type->max_mcs; dct++) {
+	for (dct = 0; dct < pvt->fam_type->max_mcs; dct++) {
 		for_each_chip_select(cs, dct, pvt)
 			cs_enabled |= csrow_enabled(cs, dct, pvt);
 	}
@@ -3834,8 +5019,8 @@ static int probe_one_instance(unsigned int nid)
 	pvt->F3 = F3;
 
 	ret = -ENODEV;
-	fam_type = per_family_init(pvt);
-	if (!fam_type)
+	pvt->fam_type = per_family_init(pvt);
+	if (!pvt->fam_type)
 		goto err_enable;
 
 	ret = hw_info_get(pvt);
@@ -3874,7 +5059,7 @@ static int probe_one_instance(unsigned int nid)
 		goto err_enable;
 	}
 
-	amd64_info("%s %sdetected (node %d).\n", fam_type->ctl_name,
+	amd64_info("%s %sdetected (node %d).\n", pvt->fam_type->ctl_name,
 		     (pvt->fam == 0xf ?
 				(pvt->ext_model >= K8_REV_F  ? "revF or later "
 							     : "revE or earlier ")
