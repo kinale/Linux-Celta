@@ -379,13 +379,8 @@ dtc-tmp = $(subst $(comma),_,$(dot-target).dts.tmp)
 
 # Bzip2 and LZMA do not include size in file... so we have to fake that;
 # append the size as a 32-bit littleendian number as gzip does.
-size_append = printf $(shell						\
-dec_size=0;								\
-for F in $(real-prereqs); do					\
-	fsize=$$($(CONFIG_SHELL) $(srctree)/scripts/file-size.sh $$F);	\
-	dec_size=$$(expr $$dec_size + $$fsize);				\
-done;									\
-printf "%08x\n" $$dec_size |						\
+total_size = $(shell $(PERL) $(srctree)/scripts/file-size.pl $(real-prereqs))
+size_append = printf $(shell printf "%08x\n" $(total_size) |		\
 	sed 's/\(..\)/\1 /g' | {					\
 		read ch0 ch1 ch2 ch3;					\
 		for ch in $$ch3 $$ch2 $$ch1 $$ch0; do			\
@@ -471,12 +466,20 @@ quiet_cmd_xzmisc = XZMISC  $@
 # single pass, so zstd doesn't need to allocate a window buffer. When streaming
 # decompression is used, like initramfs decompression, zstd22 should likely not
 # be used because it would require zstd to allocate a 128 MB buffer.
+#
+# --stream-size to reduce zstd memory usage (otherwise zstd -22 --ultra
+# allocates, but does not use, 2 GB) and potentially improve compression.
+#
+# --no-content-size to save three bytes which we do not use (we use size_append).
+
+# zstd --stream-size is only supported since 1.4.4
+zstd_stream_size = $(shell $(ZSTD) -1c --stream-size=0 --no-content-size </dev/null >/dev/null 2>&1 && printf '%s' '--stream-size=$(total_size) --no-content-size')
 
 quiet_cmd_zstd = ZSTD    $@
-      cmd_zstd = { cat $(real-prereqs) | $(ZSTD) -19; $(size_append); } > $@
+      cmd_zstd = { cat $(real-prereqs) | $(ZSTD) $(zstd_stream_size) -$(CONFIG_KERNEL_ZSTD_LEVEL) -T0; $(size_append); } > $@
 
 quiet_cmd_zstd22 = ZSTD22  $@
-      cmd_zstd22 = { cat $(real-prereqs) | $(ZSTD) -22 --ultra; $(size_append); } > $@
+      cmd_zstd22 = { cat $(real-prereqs) | $(ZSTD) $(zstd_stream_size) -22 --ultra -T0; $(size_append); } > $@
 
 # ASM offsets
 # ---------------------------------------------------------------------------
