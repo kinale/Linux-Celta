@@ -42,7 +42,11 @@ struct blk_crypto_profile;
  * Maximum number of blkcg policies allowed to be registered concurrently.
  * Defined here to simplify include dependency.
  */
-#define BLKCG_MAX_POLS		6
+#define BLKCG_MAX_POLS		7
+/*
+ * Non blk-rq-qos blkcg policies include blk-throttle and bfq
+ */
+#define BLKCG_NON_RQOS_POLS		2
 
 static inline int blk_validate_block_size(unsigned int bsize)
 {
@@ -1293,7 +1297,10 @@ void blkdev_put(struct block_device *bdev, fmode_t mode);
 
 /* just for blk-cgroup, don't use elsewhere */
 struct block_device *blkdev_get_no_open(dev_t dev);
-void blkdev_put_no_open(struct block_device *bdev);
+static inline void blkdev_put_no_open(struct block_device *bdev)
+{
+	put_device(&bdev->bd_device);
+}
 
 struct block_device *bdev_alloc(struct gendisk *disk, u8 partno);
 void bdev_add(struct block_device *bdev, dev_t dev);

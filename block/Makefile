@@ -8,7 +8,7 @@ obj-y		:= bdev.o fops.o bio.o elevator.o blk-core.o blk-sysfs.o \
 			blk-exec.o blk-merge.o blk-timeout.o \
 			blk-lib.o blk-mq.o blk-mq-tag.o blk-stat.o \
 			blk-mq-sysfs.o blk-mq-cpumap.o blk-mq-sched.o ioctl.o \
-			genhd.o ioprio.o badblocks.o partitions/ blk-rq-qos.o \
+			genhd.o ioprio-common.o badblocks.o partitions/ blk-rq-qos.o \
 			disk-events.o blk-ia-ranges.o
 
 obj-$(CONFIG_BOUNCE)		+= bounce.o
@@ -17,9 +17,14 @@ obj-$(CONFIG_BLK_DEV_BSGLIB)	+= bsg-lib.o
 obj-$(CONFIG_BLK_CGROUP)	+= blk-cgroup.o
 obj-$(CONFIG_BLK_CGROUP_RWSTAT)	+= blk-cgroup-rwstat.o
 obj-$(CONFIG_BLK_DEV_THROTTLING)	+= blk-throttle.o
-obj-$(CONFIG_BLK_CGROUP_IOPRIO)	+= blk-ioprio.o
-obj-$(CONFIG_BLK_CGROUP_IOLATENCY)	+= blk-iolatency.o
-obj-$(CONFIG_BLK_CGROUP_IOCOST)	+= blk-iocost.o
+ioprio-y 			:= blk-ioprio.o
+obj-$(CONFIG_BLK_CGROUP_IOPRIO)	+= ioprio.o
+iolat-y 				:= blk-iolatency.o
+obj-$(CONFIG_BLK_CGROUP_IOLATENCY)	+= iolat.o
+iocost-y 			:= blk-iocost.o
+obj-$(CONFIG_BLK_CGROUP_IOCOST)	+= iocost.o
+iostat-y 			:= blk-iostat.o
+obj-$(CONFIG_BLK_CGROUP_IOSTAT)	+= iostat.o
 obj-$(CONFIG_MQ_IOSCHED_DEADLINE)	+= mq-deadline.o
 obj-$(CONFIG_MQ_IOSCHED_KYBER)	+= kyber-iosched.o
 bfq-y				:= bfq-iosched.o bfq-wf2q.o bfq-cgroup.o
