@@ -63,6 +63,7 @@
 #include <linux/indirect_call_wrapper.h>
 #include <linux/atomic.h>
 #include <linux/refcount.h>
+#include <linux/llist.h>
 #include <net/dst.h>
 #include <net/checksum.h>
 #include <net/tcp_states.h>
@@ -391,6 +392,11 @@ struct sock {
 #define sk_flags		__sk_common.skc_flags
 #define sk_rxhash		__sk_common.skc_rxhash
 
+	/* early demux fields */
+	struct dst_entry __rcu	*sk_rx_dst;
+	int			sk_rx_dst_ifindex;
+	u32			sk_rx_dst_cookie;
+
 	socket_lock_t		sk_lock;
 	atomic_t		sk_drops;
 	int			sk_rcvlowat;
@@ -410,6 +416,8 @@ struct sock {
 		struct sk_buff	*head;
 		struct sk_buff	*tail;
 	} sk_backlog;
+	struct llist_head defer_list;
+
 #define sk_rmem_alloc sk_backlog.rmem_alloc
 
 	int			sk_forward_alloc;
@@ -431,9 +439,6 @@ struct sock {
 #ifdef CONFIG_XFRM
 	struct xfrm_policy __rcu *sk_policy[2];
 #endif
-	struct dst_entry __rcu	*sk_rx_dst;
-	int			sk_rx_dst_ifindex;
-	u32			sk_rx_dst_cookie;
 
 	struct dst_entry __rcu	*sk_dst_cache;
 	atomic_t		sk_omem_alloc;
@@ -493,6 +498,7 @@ struct sock {
 	u16			sk_busy_poll_budget;
 #endif
 	spinlock_t		sk_peer_lock;
+	int			sk_bind_phc;
 	struct pid		*sk_peer_pid;
 	const struct cred	*sk_peer_cred;
 
@@ -502,7 +508,6 @@ struct sock {
 	seqlock_t		sk_stamp_seq;
 #endif
 	u16			sk_tsflags;
-	int			sk_bind_phc;
 	u8			sk_shutdown;
 	u32			sk_tskey;
 	atomic_t		sk_zckey;
@@ -1022,12 +1027,18 @@ static inline __must_check int sk_add_backlog(struct sock *sk, struct sk_buff *s
 
 int __sk_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
+INDIRECT_CALLABLE_DECLARE(int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb));
+INDIRECT_CALLABLE_DECLARE(int tcp_v6_do_rcv(struct sock *sk, struct sk_buff *skb));
+
 static inline int sk_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	if (sk_memalloc_socks() && skb_pfmemalloc(skb))
 		return __sk_backlog_rcv(sk, skb);
 
-	return sk->sk_backlog_rcv(sk, skb);
+	return INDIRECT_CALL_INET(sk->sk_backlog_rcv,
+				  tcp_v6_do_rcv,
+				  tcp_v4_do_rcv,
+				  sk, skb);
 }
 
 static inline void sk_incoming_cpu_update(struct sock *sk)
@@ -1210,7 +1221,9 @@ struct proto {
 	unsigned int		inuse_idx;
 #endif
 
+#if IS_ENABLED(CONFIG_MPTCP)
 	int			(*forward_alloc_get)(const struct sock *sk);
+#endif
 
 	bool			(*stream_memory_free)(const struct sock *sk, int wake);
 	bool			(*sock_is_readable)(struct sock *sk);
@@ -1299,10 +1312,11 @@ INDIRECT_CALLABLE_DECLARE(bool tcp_stream_memory_free(const struct sock *sk, int
 
 static inline int sk_forward_alloc_get(const struct sock *sk)
 {
-	if (!sk->sk_prot->forward_alloc_get)
-		return sk->sk_forward_alloc;
-
-	return sk->sk_prot->forward_alloc_get(sk);
+#if IS_ENABLED(CONFIG_MPTCP)
+	if (sk->sk_prot->forward_alloc_get)
+		return sk->sk_prot->forward_alloc_get(sk);
+#endif
+	return sk->sk_forward_alloc;
 }
 
 static inline bool __sk_stream_memory_free(const struct sock *sk, int wake)
