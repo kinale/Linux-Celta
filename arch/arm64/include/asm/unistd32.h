@@ -392,8 +392,8 @@ __SYSCALL(188, sys_ni_syscall)
 __SYSCALL(189, sys_ni_syscall)
 #define __NR_vfork 190
 __SYSCALL(__NR_vfork, sys_vfork)
-#define __NR_ugetrlimit 191	/* SuS compliant getrlimit */
-__SYSCALL(__NR_ugetrlimit, compat_sys_getrlimit)		/* SuS compliant getrlimit */
+#define __NR_ugetrlimit 191 /* SuS compliant getrlimit */
+__SYSCALL(__NR_ugetrlimit, compat_sys_getrlimit) /* SuS compliant getrlimit */
 #define __NR_mmap2 192
 __SYSCALL(__NR_mmap2, compat_sys_aarch32_mmap2)
 #define __NR_truncate64 193

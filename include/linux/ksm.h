@@ -20,25 +20,25 @@ struct mem_cgroup;
 
 #ifdef CONFIG_KSM
 int ksm_madvise_merge(struct mm_struct *mm, struct vm_area_struct *vma,
-                      unsigned long *vm_flags);
+		      unsigned long *vm_flags);
 int ksm_madvise_unmerge(struct vm_area_struct *vma, unsigned long start,
-                        unsigned long end, unsigned long *vm_flags);
+			unsigned long end, unsigned long *vm_flags);
 int ksm_madvise(struct vm_area_struct *vma, unsigned long start,
-                unsigned long end, int advice, unsigned long *vm_flags);
+		unsigned long end, int advice, unsigned long *vm_flags);
 int __ksm_enter(struct mm_struct *mm);
 void __ksm_exit(struct mm_struct *mm);
 
 static inline int ksm_fork(struct mm_struct *mm, struct mm_struct *oldmm)
 {
-    if (test_bit(MMF_VM_MERGEABLE, &oldmm->flags))
-        return __ksm_enter(mm);
-    return 0;
+	if (test_bit(MMF_VM_MERGEABLE, &oldmm->flags))
+		return __ksm_enter(mm);
+	return 0;
 }
 
 static inline void ksm_exit(struct mm_struct *mm)
 {
-    if (test_bit(MMF_VM_MERGEABLE, &mm->flags))
-        __ksm_exit(mm);
+	if (test_bit(MMF_VM_MERGEABLE, &mm->flags))
+		__ksm_exit(mm);
 }
 
 /*
@@ -53,16 +53,17 @@ static inline void ksm_exit(struct mm_struct *mm)
  * but what if the vma was unmerged while the page was swapped out?
  */
 struct page *ksm_might_need_to_copy(struct page *page,
-                                    struct vm_area_struct *vma, unsigned long address);
+				    struct vm_area_struct *vma,
+				    unsigned long address);
 
 void rmap_walk_ksm(struct page *page, struct rmap_walk_control *rwc);
 void folio_migrate_ksm(struct folio *newfolio, struct folio *folio);
 
-#else  /* !CONFIG_KSM */
+#else /* !CONFIG_KSM */
 
 static inline int ksm_fork(struct mm_struct *mm, struct mm_struct *oldmm)
 {
-    return 0;
+	return 0;
 }
 
 static inline void ksm_exit(struct mm_struct *mm)
@@ -71,19 +72,21 @@ static inline void ksm_exit(struct mm_struct *mm)
 
 #ifdef CONFIG_MMU
 static inline int ksm_madvise(struct vm_area_struct *vma, unsigned long start,
-                              unsigned long end, int advice, unsigned long *vm_flags)
+			      unsigned long end, int advice,
+			      unsigned long *vm_flags)
 {
-    return 0;
+	return 0;
 }
 
 static inline struct page *ksm_might_need_to_copy(struct page *page,
-        struct vm_area_struct *vma, unsigned long address)
+						  struct vm_area_struct *vma,
+						  unsigned long address)
 {
-    return page;
+	return page;
 }
 
 static inline void rmap_walk_ksm(struct page *page,
-                                 struct rmap_walk_control *rwc)
+				 struct rmap_walk_control *rwc)
 {
 }
 

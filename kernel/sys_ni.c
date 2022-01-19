@@ -19,7 +19,7 @@ asmlinkage long sys_ni_syscall(void);
  */
 asmlinkage long sys_ni_syscall(void)
 {
-    return -ENOSYS;
+	return -ENOSYS;
 }
 
 #ifndef COND_SYSCALL
@@ -392,7 +392,6 @@ COND_SYSCALL(rtas);
 COND_SYSCALL(spu_run);
 COND_SYSCALL(spu_create);
 COND_SYSCALL(subpage_prot);
-
 
 /*
  * Deprecated system calls which are still defined in
