@@ -17,49 +17,49 @@
  * timer fires, @cpu_stat is flushed to @stat and @timer_fn is invoked.
  */
 struct blk_stat_callback {
-    /*
+	/*
      * @list: RCU list of callbacks for a &struct request_queue.
      */
-    struct list_head list;
+	struct list_head list;
 
-    /**
+	/**
      * @timer: Timer for the next callback invocation.
      */
-    struct timer_list timer;
+	struct timer_list timer;
 
-    /**
+	/**
      * @cpu_stat: Per-cpu statistics buckets.
      */
-    struct blk_rq_stat __percpu *cpu_stat;
+	struct blk_rq_stat __percpu *cpu_stat;
 
-    /**
+	/**
      * @bucket_fn: Given a request, returns which statistics bucket it
      * should be accounted under. Return -1 for no bucket for this
      * request.
      */
-    int (*bucket_fn)(const struct request *);
+	int (*bucket_fn)(const struct request *);
 
-    /**
+	/**
      * @buckets: Number of statistics buckets.
      */
-    unsigned int buckets;
+	unsigned int buckets;
 
-    /**
+	/**
      * @stat: Array of statistics buckets.
      */
-    struct blk_rq_stat *stat;
+	struct blk_rq_stat *stat;
 
-    /**
+	/**
      * @fn: Callback function.
      */
-    void (*timer_fn)(struct blk_stat_callback *);
+	void (*timer_fn)(struct blk_stat_callback *);
 
-    /**
+	/**
      * @data: Private pointer for the user.
      */
-    void *data;
+	void *data;
 
-    struct rcu_head rcu;
+	struct rcu_head rcu;
 };
 
 struct blk_queue_stats *blk_alloc_queue_stats(void);
@@ -83,8 +83,8 @@ void blk_stat_enable_accounting(struct request_queue *q);
  */
 struct blk_stat_callback *
 blk_stat_alloc_callback(void (*timer_fn)(struct blk_stat_callback *),
-                        int (*bucket_fn)(const struct request *),
-                        unsigned int buckets, void *data);
+			int (*bucket_fn)(const struct request *),
+			unsigned int buckets, void *data);
 
 /**
  * blk_stat_add_callback() - Add a block statistics callback to be run on a
@@ -96,7 +96,7 @@ blk_stat_alloc_callback(void (*timer_fn)(struct blk_stat_callback *),
  * &struct request_queue.
  */
 void blk_stat_add_callback(struct request_queue *q,
-                           struct blk_stat_callback *cb);
+			   struct blk_stat_callback *cb);
 
 /**
  * blk_stat_remove_callback() - Remove a block statistics callback from a
@@ -108,7 +108,7 @@ void blk_stat_add_callback(struct request_queue *q,
  * called again unless readded.
  */
 void blk_stat_remove_callback(struct request_queue *q,
-                              struct blk_stat_callback *cb);
+			      struct blk_stat_callback *cb);
 
 /**
  * blk_stat_free_callback() - Free a block statistics callback.
@@ -128,7 +128,7 @@ void blk_stat_free_callback(struct blk_stat_callback *cb);
  */
 static inline bool blk_stat_is_active(struct blk_stat_callback *cb)
 {
-    return timer_pending(&cb->timer);
+	return timer_pending(&cb->timer);
 }
 
 /**
@@ -140,14 +140,14 @@ static inline bool blk_stat_is_active(struct blk_stat_callback *cb)
  * The timer callback will be called when the window expires.
  */
 static inline void blk_stat_activate_nsecs(struct blk_stat_callback *cb,
-        u64 nsecs)
+					   u64 nsecs)
 {
-    mod_timer(&cb->timer, jiffies + nsecs_to_jiffies(nsecs));
+	mod_timer(&cb->timer, jiffies + nsecs_to_jiffies(nsecs));
 }
 
 static inline void blk_stat_deactivate(struct blk_stat_callback *cb)
 {
-    del_timer_sync(&cb->timer);
+	del_timer_sync(&cb->timer);
 }
 
 /**
@@ -159,38 +159,39 @@ static inline void blk_stat_deactivate(struct blk_stat_callback *cb)
  * The timer callback will be called when the window expires.
  */
 static inline void blk_stat_activate_msecs(struct blk_stat_callback *cb,
-        unsigned int msecs)
+					   unsigned int msecs)
 {
-    mod_timer(&cb->timer, jiffies + msecs_to_jiffies(msecs));
+	mod_timer(&cb->timer, jiffies + msecs_to_jiffies(msecs));
 }
 
 static inline void blk_rq_stat_init(struct blk_rq_stat *stat)
 {
-    stat->min = -1ULL;
-    stat->max = stat->nr_samples = stat->mean = 0;
-    stat->batch = 0;
+	stat->min = -1ULL;
+	stat->max = stat->nr_samples = stat->mean = 0;
+	stat->batch = 0;
 }
 
 /* src is a per-cpu stat, mean isn't initialized */
-static inline void blk_rq_stat_sum(struct blk_rq_stat *dst, struct blk_rq_stat *src)
+static inline void blk_rq_stat_sum(struct blk_rq_stat *dst,
+				   struct blk_rq_stat *src)
 {
-    if (!src->nr_samples)
-        return;
+	if (!src->nr_samples)
+		return;
 
-    dst->min = min(dst->min, src->min);
-    dst->max = max(dst->max, src->max);
+	dst->min = min(dst->min, src->min);
+	dst->max = max(dst->max, src->max);
 
-    dst->mean = div_u64(src->batch + dst->mean * dst->nr_samples,
-                        dst->nr_samples + src->nr_samples);
+	dst->mean = div_u64(src->batch + dst->mean * dst->nr_samples,
+			    dst->nr_samples + src->nr_samples);
 
-    dst->nr_samples += src->nr_samples;
+	dst->nr_samples += src->nr_samples;
 }
 
 static inline void blk_rq_stat_add(struct blk_rq_stat *stat, u64 value)
 {
-    stat->min = min(stat->min, value);
-    stat->max = max(stat->max, value);
-    stat->batch += value;
-    stat->nr_samples++;
+	stat->min = min(stat->min, value);
+	stat->max = max(stat->max, value);
+	stat->batch += value;
+	stat->nr_samples++;
 }
 #endif
