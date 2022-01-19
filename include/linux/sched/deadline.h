@@ -4,20 +4,20 @@
 
 static inline int dl_task(struct task_struct *p)
 {
-    return 0;
+	return 0;
 }
 
 #ifdef CONFIG_SCHED_BMQ
-#define __tsk_deadline(p)	(0UL)
+#define __tsk_deadline(p) (0UL)
 #endif
 
 #ifdef CONFIG_SCHED_PDS
-#define __tsk_deadline(p)	((((u64) ((p)->prio))<<56) | (p)->deadline)
+#define __tsk_deadline(p) ((((u64)((p)->prio)) << 56) | (p)->deadline)
 #endif
 
 #else
 
-#define __tsk_deadline(p)	((p)->dl.deadline)
+#define __tsk_deadline(p) ((p)->dl.deadline)
 
 /*
  * SCHED_DEADLINE tasks has negative priorities, reflecting
@@ -25,24 +25,24 @@ static inline int dl_task(struct task_struct *p)
  * NORMAL/BATCH tasks.
  */
 
-#define MAX_DL_PRIO		0
+#define MAX_DL_PRIO 0
 
 static inline int dl_prio(int prio)
 {
-    if (unlikely(prio < MAX_DL_PRIO))
-        return 1;
-    return 0;
+	if (unlikely(prio < MAX_DL_PRIO))
+		return 1;
+	return 0;
 }
 
 static inline int dl_task(struct task_struct *p)
 {
-    return dl_prio(p->prio);
+	return dl_prio(p->prio);
 }
 #endif /* CONFIG_SCHED_ALT */
 
 static inline bool dl_time_before(u64 a, u64 b)
 {
-    return (s64)(a - b) < 0;
+	return (s64)(a - b) < 0;
 }
 
 #ifdef CONFIG_SMP
