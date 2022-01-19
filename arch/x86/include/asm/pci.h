@@ -13,21 +13,21 @@
 #include <asm/x86_init.h>
 
 struct pci_sysdata {
-	int		domain;		/* PCI domain */
-	int		node;		/* NUMA node */
+    int		domain;		/* PCI domain */
+    int		node;		/* NUMA node */
 #ifdef CONFIG_ACPI
-	struct acpi_device *companion;	/* ACPI companion device */
+    struct acpi_device *companion;	/* ACPI companion device */
 #endif
 #ifdef CONFIG_X86_64
-	void		*iommu;		/* IOMMU private data */
+    void		*iommu;		/* IOMMU private data */
 #endif
 #ifdef CONFIG_PCI_MSI_IRQ_DOMAIN
-	void		*fwnode;	/* IRQ domain for MSI assignment */
+    void		*fwnode;	/* IRQ domain for MSI assignment */
 #endif
 #if IS_ENABLED(CONFIG_VMD)
-	struct pci_dev	*vmd_dev;	/* VMD Device if in Intel VMD domain */
+    struct pci_dev	*vmd_dev;	/* VMD Device if in Intel VMD domain */
 #endif
-	struct pci_dev	*nvme_remap_dev;	/* AHCI Device if NVME remapped bus */
+    struct pci_dev	*nvme_remap_dev;	/* AHCI Device if NVME remapped bus */
 };
 
 extern int pci_routeirq;
@@ -36,7 +36,7 @@ extern int noioapicreroute;
 
 static inline struct pci_sysdata *to_pci_sysdata(const struct pci_bus *bus)
 {
-	return bus->sysdata;
+    return bus->sysdata;
 }
 
 #ifdef CONFIG_PCI
@@ -44,19 +44,19 @@ static inline struct pci_sysdata *to_pci_sysdata(const struct pci_bus *bus)
 #ifdef CONFIG_PCI_DOMAINS
 static inline int pci_domain_nr(struct pci_bus *bus)
 {
-	return to_pci_sysdata(bus)->domain;
+    return to_pci_sysdata(bus)->domain;
 }
 
 static inline int pci_proc_domain(struct pci_bus *bus)
 {
-	return pci_domain_nr(bus);
+    return pci_domain_nr(bus);
 }
 #endif
 
 #ifdef CONFIG_PCI_MSI_IRQ_DOMAIN
 static inline void *_pci_root_bus_fwnode(struct pci_bus *bus)
 {
-	return to_pci_sysdata(bus)->fwnode;
+    return to_pci_sysdata(bus)->fwnode;
 }
 
 #define pci_root_bus_fwnode	_pci_root_bus_fwnode
@@ -65,7 +65,7 @@ static inline void *_pci_root_bus_fwnode(struct pci_bus *bus)
 #if IS_ENABLED(CONFIG_VMD)
 static inline bool is_vmd(struct pci_bus *bus)
 {
-	return to_pci_sysdata(bus)->vmd_dev != NULL;
+    return to_pci_sysdata(bus)->vmd_dev != NULL;
 }
 #else
 #define is_vmd(bus)		false
@@ -73,7 +73,7 @@ static inline bool is_vmd(struct pci_bus *bus)
 
 static inline bool is_nvme_remap(struct pci_bus *bus)
 {
-	return to_pci_sysdata(bus)->nvme_remap_dev != NULL;
+    return to_pci_sysdata(bus)->nvme_remap_dev != NULL;
 }
 
 /* Can be used to override the logic in pci_scan_bus for skipping
@@ -83,7 +83,9 @@ static inline bool is_nvme_remap(struct pci_bus *bus)
 extern unsigned int pcibios_assign_all_busses(void);
 extern int pci_legacy_init(void);
 #else
-static inline int pcibios_assign_all_busses(void) { return 0; }
+static inline int pcibios_assign_all_busses(void) {
+    return 0;
+}
 #endif
 
 extern unsigned long pci_mem_start;
@@ -118,30 +120,30 @@ extern void pci_iommu_alloc(void);
 /* Returns the node based on pci bus */
 static inline int __pcibus_to_node(const struct pci_bus *bus)
 {
-	return to_pci_sysdata(bus)->node;
+    return to_pci_sysdata(bus)->node;
 }
 
 static inline const struct cpumask *
 cpumask_of_pcibus(const struct pci_bus *bus)
 {
-	int node;
+    int node;
 
-	node = __pcibus_to_node(bus);
-	return (node == NUMA_NO_NODE) ? cpu_online_mask :
-			      cpumask_of_node(node);
+    node = __pcibus_to_node(bus);
+    return (node == NUMA_NO_NODE) ? cpu_online_mask :
+           cpumask_of_node(node);
 }
 #endif
 
 struct pci_setup_rom {
-	struct setup_data data;
-	uint16_t vendor;
-	uint16_t devid;
-	uint64_t pcilen;
-	unsigned long segment;
-	unsigned long bus;
-	unsigned long device;
-	unsigned long function;
-	uint8_t romdata[0];
+    struct setup_data data;
+    uint16_t vendor;
+    uint16_t devid;
+    uint64_t pcilen;
+    unsigned long segment;
+    unsigned long bus;
+    unsigned long device;
+    unsigned long function;
+    uint8_t romdata[0];
 };
 
 #endif /* _ASM_X86_PCI_H */
