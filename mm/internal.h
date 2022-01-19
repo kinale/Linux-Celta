@@ -18,47 +18,47 @@
  * about IO, FS and watermark checking while ignoring placement
  * hints such as HIGHMEM usage.
  */
-#define GFP_RECLAIM_MASK (__GFP_RECLAIM|__GFP_HIGH|__GFP_IO|__GFP_FS|\
-			__GFP_NOWARN|__GFP_RETRY_MAYFAIL|__GFP_NOFAIL|\
-			__GFP_NORETRY|__GFP_MEMALLOC|__GFP_NOMEMALLOC|\
-			__GFP_ATOMIC)
+#define GFP_RECLAIM_MASK                                                       \
+	(__GFP_RECLAIM | __GFP_HIGH | __GFP_IO | __GFP_FS | __GFP_NOWARN |     \
+	 __GFP_RETRY_MAYFAIL | __GFP_NOFAIL | __GFP_NORETRY | __GFP_MEMALLOC | \
+	 __GFP_NOMEMALLOC | __GFP_ATOMIC)
 
 /* The GFP flags allowed during early boot */
-#define GFP_BOOT_MASK (__GFP_BITS_MASK & ~(__GFP_RECLAIM|__GFP_IO|__GFP_FS))
+#define GFP_BOOT_MASK (__GFP_BITS_MASK & ~(__GFP_RECLAIM | __GFP_IO | __GFP_FS))
 
 /* Control allocation cpuset and node placement constraints */
-#define GFP_CONSTRAINT_MASK (__GFP_HARDWALL|__GFP_THISNODE)
+#define GFP_CONSTRAINT_MASK (__GFP_HARDWALL | __GFP_THISNODE)
 
 /* Do not use these with a slab allocator */
-#define GFP_SLAB_BUG_MASK (__GFP_DMA32|__GFP_HIGHMEM|~__GFP_BITS_MASK)
+#define GFP_SLAB_BUG_MASK (__GFP_DMA32 | __GFP_HIGHMEM | ~__GFP_BITS_MASK)
 
 void page_writeback_init(void);
 
 static inline void *folio_raw_mapping(struct folio *folio)
 {
-    unsigned long mapping = (unsigned long)folio->mapping;
+	unsigned long mapping = (unsigned long)folio->mapping;
 
-    return (void *)(mapping & ~PAGE_MAPPING_FLAGS);
+	return (void *)(mapping & ~PAGE_MAPPING_FLAGS);
 }
 
 void __acct_reclaim_writeback(pg_data_t *pgdat, struct folio *folio,
-                              int nr_throttled);
+			      int nr_throttled);
 static inline void acct_reclaim_writeback(struct folio *folio)
 {
-    pg_data_t *pgdat = folio_pgdat(folio);
-    int nr_throttled = atomic_read(&pgdat->nr_writeback_throttled);
+	pg_data_t *pgdat = folio_pgdat(folio);
+	int nr_throttled = atomic_read(&pgdat->nr_writeback_throttled);
 
-    if (nr_throttled)
-        __acct_reclaim_writeback(pgdat, folio, nr_throttled);
+	if (nr_throttled)
+		__acct_reclaim_writeback(pgdat, folio, nr_throttled);
 }
 
 static inline void wake_throttle_isolated(pg_data_t *pgdat)
 {
-    wait_queue_head_t *wqh;
+	wait_queue_head_t *wqh;
 
-    wqh = &pgdat->reclaim_wait[VMSCAN_THROTTLE_ISOLATED];
-    if (waitqueue_active(wqh))
-        wake_up(wqh);
+	wqh = &pgdat->reclaim_wait[VMSCAN_THROTTLE_ISOLATED];
+	if (waitqueue_active(wqh))
+		wake_up(wqh);
 }
 
 vm_fault_t do_swap_page(struct vm_fault *vmf);
@@ -66,31 +66,31 @@ void folio_rotate_reclaimable(struct folio *folio);
 bool __folio_end_writeback(struct folio *folio);
 
 void free_pgtables(struct mmu_gather *tlb, struct vm_area_struct *start_vma,
-                   unsigned long floor, unsigned long ceiling);
+		   unsigned long floor, unsigned long ceiling);
 void pmd_install(struct mm_struct *mm, pmd_t *pmd, pgtable_t *pte);
 
 static inline bool can_madv_lru_vma(struct vm_area_struct *vma)
 {
-    return !(vma->vm_flags & (VM_LOCKED|VM_HUGETLB|VM_PFNMAP));
+	return !(vma->vm_flags & (VM_LOCKED | VM_HUGETLB | VM_PFNMAP));
 }
 
-void unmap_page_range(struct mmu_gather *tlb,
-                      struct vm_area_struct *vma,
-                      unsigned long addr, unsigned long end,
-                      struct zap_details *details);
+void unmap_page_range(struct mmu_gather *tlb, struct vm_area_struct *vma,
+		      unsigned long addr, unsigned long end,
+		      struct zap_details *details);
 
 void do_page_cache_ra(struct readahead_control *, unsigned long nr_to_read,
-                      unsigned long lookahead_size);
+		      unsigned long lookahead_size);
 void force_page_cache_ra(struct readahead_control *, unsigned long nr);
 static inline void force_page_cache_readahead(struct address_space *mapping,
-        struct file *file, pgoff_t index, unsigned long nr_to_read)
+					      struct file *file, pgoff_t index,
+					      unsigned long nr_to_read)
 {
-    DEFINE_READAHEAD(ractl, file, &file->f_ra, mapping, index);
-    force_page_cache_ra(&ractl, nr_to_read);
+	DEFINE_READAHEAD(ractl, file, &file->f_ra, mapping, index);
+	force_page_cache_ra(&ractl, nr_to_read);
 }
 
 unsigned find_lock_entries(struct address_space *mapping, pgoff_t start,
-                           pgoff_t end, struct pagevec *pvec, pgoff_t *indices);
+			   pgoff_t end, struct pagevec *pvec, pgoff_t *indices);
 
 /**
  * folio_evictable - Test whether a folio is evictable.
@@ -105,25 +105,25 @@ unsigned find_lock_entries(struct address_space *mapping, pgoff_t start,
  */
 static inline bool folio_evictable(struct folio *folio)
 {
-    bool ret;
+	bool ret;
 
-    /* Prevent address_space of inode and swap cache from being freed */
-    rcu_read_lock();
-    ret = !mapping_unevictable(folio_mapping(folio)) &&
-          !folio_test_mlocked(folio);
-    rcu_read_unlock();
-    return ret;
+	/* Prevent address_space of inode and swap cache from being freed */
+	rcu_read_lock();
+	ret = !mapping_unevictable(folio_mapping(folio)) &&
+	      !folio_test_mlocked(folio);
+	rcu_read_unlock();
+	return ret;
 }
 
 static inline bool page_evictable(struct page *page)
 {
-    bool ret;
+	bool ret;
 
-    /* Prevent address_space of inode and swap cache from being freed */
-    rcu_read_lock();
-    ret = !mapping_unevictable(page_mapping(page)) && !PageMlocked(page);
-    rcu_read_unlock();
-    return ret;
+	/* Prevent address_space of inode and swap cache from being freed */
+	rcu_read_lock();
+	ret = !mapping_unevictable(page_mapping(page)) && !PageMlocked(page);
+	rcu_read_unlock();
+	return ret;
 }
 
 /*
@@ -132,9 +132,9 @@ static inline bool page_evictable(struct page *page)
  */
 static inline void set_page_refcounted(struct page *page)
 {
-    VM_BUG_ON_PAGE(PageTail(page), page);
-    VM_BUG_ON_PAGE(page_ref_count(page), page);
-    set_page_count(page, 1);
+	VM_BUG_ON_PAGE(PageTail(page), page);
+	VM_BUG_ON_PAGE(page_ref_count(page), page);
+	set_page_count(page, 1);
 }
 
 extern unsigned long highest_memmap_pfn;
@@ -150,7 +150,8 @@ extern unsigned long highest_memmap_pfn;
  */
 extern int isolate_lru_page(struct page *page);
 extern void putback_lru_page(struct page *page);
-extern void reclaim_throttle(pg_data_t *pgdat, enum vmscan_throttle_state reason);
+extern void reclaim_throttle(pg_data_t *pgdat,
+			     enum vmscan_throttle_state reason);
 
 /*
  * in mm/rmap.c:
@@ -180,12 +181,12 @@ extern bool cgroup_memory_nokmem;
  * by a const pointer.
  */
 struct alloc_context {
-    struct zonelist *zonelist;
-    nodemask_t *nodemask;
-    struct zoneref *preferred_zoneref;
-    int migratetype;
+	struct zonelist *zonelist;
+	nodemask_t *nodemask;
+	struct zoneref *preferred_zoneref;
+	int migratetype;
 
-    /*
+	/*
      * highest_zoneidx represents highest usable zone index of
      * the allocation request. Due to the nature of the zone,
      * memory on lower zone than the highest_zoneidx will be
@@ -195,8 +196,8 @@ struct alloc_context {
      * the target zone since higher zone than this index cannot be
      * usable for this allocation request.
      */
-    enum zone_type highest_zoneidx;
-    bool spread_dirty_pages;
+	enum zone_type highest_zoneidx;
+	bool spread_dirty_pages;
 };
 
 /*
@@ -216,33 +217,35 @@ struct alloc_context {
  *
  * Assumption: *_mem_map is contiguous at least up to MAX_ORDER
  */
-static inline unsigned long
-__find_buddy_pfn(unsigned long page_pfn, unsigned int order)
+static inline unsigned long __find_buddy_pfn(unsigned long page_pfn,
+					     unsigned int order)
 {
-    return page_pfn ^ (1 << order);
+	return page_pfn ^ (1 << order);
 }
 
 extern struct page *__pageblock_pfn_to_page(unsigned long start_pfn,
-        unsigned long end_pfn, struct zone *zone);
+					    unsigned long end_pfn,
+					    struct zone *zone);
 
 static inline struct page *pageblock_pfn_to_page(unsigned long start_pfn,
-        unsigned long end_pfn, struct zone *zone)
+						 unsigned long end_pfn,
+						 struct zone *zone)
 {
-    if (zone->contiguous)
-        return pfn_to_page(start_pfn);
+	if (zone->contiguous)
+		return pfn_to_page(start_pfn);
 
-    return __pageblock_pfn_to_page(start_pfn, end_pfn, zone);
+	return __pageblock_pfn_to_page(start_pfn, end_pfn, zone);
 }
 
 extern int __isolate_free_page(struct page *page, unsigned int order);
 extern void __putback_isolated_page(struct page *page, unsigned int order,
-                                    int mt);
+				    int mt);
 extern void memblock_free_pages(struct page *page, unsigned long pfn,
-                                unsigned int order);
+				unsigned int order);
 extern void __free_pages_core(struct page *page, unsigned int order);
 extern void prep_compound_page(struct page *page, unsigned int order);
 extern void post_alloc_hook(struct page *page, unsigned int order,
-                            gfp_t gfp_flags);
+			    gfp_t gfp_flags);
 extern int user_min_free_kbytes;
 extern atomic_long_t kswapd_waiters;
 
@@ -255,8 +258,7 @@ extern void zone_pcp_disable(struct zone *zone);
 extern void zone_pcp_enable(struct zone *zone);
 
 extern void *memmap_alloc(phys_addr_t size, phys_addr_t align,
-                          phys_addr_t min_addr,
-                          int nid, bool exact_nid);
+			  phys_addr_t min_addr, int nid, bool exact_nid);
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 
@@ -271,39 +273,39 @@ extern void *memmap_alloc(phys_addr_t size, phys_addr_t align,
  * completes when free_pfn <= migrate_pfn
  */
 struct compact_control {
-    struct list_head freepages;	/* List of free pages to migrate to */
-    struct list_head migratepages;	/* List of pages being migrated */
-    unsigned int nr_freepages;	/* Number of isolated free pages */
-    unsigned int nr_migratepages;	/* Number of pages to migrate */
-    unsigned long free_pfn;		/* isolate_freepages search base */
-    /*
+	struct list_head freepages; /* List of free pages to migrate to */
+	struct list_head migratepages; /* List of pages being migrated */
+	unsigned int nr_freepages; /* Number of isolated free pages */
+	unsigned int nr_migratepages; /* Number of pages to migrate */
+	unsigned long free_pfn; /* isolate_freepages search base */
+	/*
      * Acts as an in/out parameter to page isolation for migration.
      * isolate_migratepages uses it as a search base.
      * isolate_migratepages_block will update the value to the next pfn
      * after the last isolated one.
      */
-    unsigned long migrate_pfn;
-    unsigned long fast_start_pfn;	/* a pfn to start linear scan from */
-    struct zone *zone;
-    unsigned long total_migrate_scanned;
-    unsigned long total_free_scanned;
-    unsigned short fast_search_fail;/* failures to use free list searches */
-    short search_order;		/* order to start a fast search at */
-    const gfp_t gfp_mask;		/* gfp mask of a direct compactor */
-    int order;			/* order a direct compactor needs */
-    int migratetype;		/* migratetype of direct compactor */
-    const unsigned int alloc_flags;	/* alloc flags of a direct compactor */
-    const int highest_zoneidx;	/* zone index of a direct compactor */
-    enum migrate_mode mode;		/* Async or sync migration mode */
-    bool ignore_skip_hint;		/* Scan blocks even if marked skip */
-    bool no_set_skip_hint;		/* Don't mark blocks for skipping */
-    bool ignore_block_suitable;	/* Scan blocks considered unsuitable */
-    bool direct_compaction;		/* False from kcompactd or /proc/... */
-    bool proactive_compaction;	/* kcompactd proactive compaction */
-    bool whole_zone;		/* Whole zone should/has been scanned */
-    bool contended;			/* Signal lock or sched contention */
-    bool rescan;			/* Rescanning the same pageblock */
-    bool alloc_contig;		/* alloc_contig_range allocation */
+	unsigned long migrate_pfn;
+	unsigned long fast_start_pfn; /* a pfn to start linear scan from */
+	struct zone *zone;
+	unsigned long total_migrate_scanned;
+	unsigned long total_free_scanned;
+	unsigned short fast_search_fail; /* failures to use free list searches */
+	short search_order; /* order to start a fast search at */
+	const gfp_t gfp_mask; /* gfp mask of a direct compactor */
+	int order; /* order a direct compactor needs */
+	int migratetype; /* migratetype of direct compactor */
+	const unsigned int alloc_flags; /* alloc flags of a direct compactor */
+	const int highest_zoneidx; /* zone index of a direct compactor */
+	enum migrate_mode mode; /* Async or sync migration mode */
+	bool ignore_skip_hint; /* Scan blocks even if marked skip */
+	bool no_set_skip_hint; /* Don't mark blocks for skipping */
+	bool ignore_block_suitable; /* Scan blocks considered unsuitable */
+	bool direct_compaction; /* False from kcompactd or /proc/... */
+	bool proactive_compaction; /* kcompactd proactive compaction */
+	bool whole_zone; /* Whole zone should/has been scanned */
+	bool contended; /* Signal lock or sched contention */
+	bool rescan; /* Rescanning the same pageblock */
+	bool alloc_contig; /* alloc_contig_range allocation */
 };
 
 /*
@@ -311,19 +313,19 @@ struct compact_control {
  * immediately when one is created during the free path.
  */
 struct capture_control {
-    struct compact_control *cc;
-    struct page *page;
+	struct compact_control *cc;
+	struct page *page;
 };
 
-unsigned long
-isolate_freepages_range(struct compact_control *cc,
-                        unsigned long start_pfn, unsigned long end_pfn);
-int
-isolate_migratepages_range(struct compact_control *cc,
-                           unsigned long low_pfn, unsigned long end_pfn);
+unsigned long isolate_freepages_range(struct compact_control *cc,
+				      unsigned long start_pfn,
+				      unsigned long end_pfn);
+int isolate_migratepages_range(struct compact_control *cc,
+			       unsigned long low_pfn, unsigned long end_pfn);
 #endif
 int find_suitable_fallback(struct free_area *area, unsigned int order,
-                           int migratetype, bool only_stealable, bool *can_steal);
+			   int migratetype, bool only_stealable,
+			   bool *can_steal);
 
 /*
  * This function returns the order of a free page in the buddy system. In
@@ -335,8 +337,8 @@ int find_suitable_fallback(struct free_area *area, unsigned int order,
  */
 static inline unsigned int buddy_order(struct page *page)
 {
-    /* PageBuddy() must be checked by the caller */
-    return page_private(page);
+	/* PageBuddy() must be checked by the caller */
+	return page_private(page);
 }
 
 /*
@@ -350,7 +352,7 @@ static inline unsigned int buddy_order(struct page *page)
  * times, potentially observing different values in the tests and the actual
  * use of the result.
  */
-#define buddy_order_unsafe(page)	READ_ONCE(page_private(page))
+#define buddy_order_unsafe(page) READ_ONCE(page_private(page))
 
 /*
  * These three helpers classifies VMAs for virtual memory accounting.
@@ -361,7 +363,7 @@ static inline unsigned int buddy_order(struct page *page)
  */
 static inline bool is_exec_mapping(vm_flags_t flags)
 {
-    return (flags & (VM_EXEC | VM_WRITE | VM_STACK)) == VM_EXEC;
+	return (flags & (VM_EXEC | VM_WRITE | VM_STACK)) == VM_EXEC;
 }
 
 /*
@@ -372,7 +374,7 @@ static inline bool is_exec_mapping(vm_flags_t flags)
  */
 static inline bool is_stack_mapping(vm_flags_t flags)
 {
-    return (flags & VM_STACK) == VM_STACK;
+	return (flags & VM_STACK) == VM_STACK;
 }
 
 /*
@@ -380,25 +382,26 @@ static inline bool is_stack_mapping(vm_flags_t flags)
  */
 static inline bool is_data_mapping(vm_flags_t flags)
 {
-    return (flags & (VM_WRITE | VM_SHARED | VM_STACK)) == VM_WRITE;
+	return (flags & (VM_WRITE | VM_SHARED | VM_STACK)) == VM_WRITE;
 }
 
 /* mm/util.c */
 void __vma_link_list(struct mm_struct *mm, struct vm_area_struct *vma,
-                     struct vm_area_struct *prev);
+		     struct vm_area_struct *prev);
 void __vma_unlink_list(struct mm_struct *mm, struct vm_area_struct *vma);
 
 #ifdef CONFIG_MMU
 extern long populate_vma_page_range(struct vm_area_struct *vma,
-                                    unsigned long start, unsigned long end, int *locked);
+				    unsigned long start, unsigned long end,
+				    int *locked);
 extern long faultin_vma_page_range(struct vm_area_struct *vma,
-                                   unsigned long start, unsigned long end,
-                                   bool write, int *locked);
+				   unsigned long start, unsigned long end,
+				   bool write, int *locked);
 extern void munlock_vma_pages_range(struct vm_area_struct *vma,
-                                    unsigned long start, unsigned long end);
+				    unsigned long start, unsigned long end);
 static inline void munlock_vma_pages_all(struct vm_area_struct *vma)
 {
-    munlock_vma_pages_range(vma, vma->vm_start, vma->vm_end);
+	munlock_vma_pages_range(vma, vma->vm_start, vma->vm_end);
 }
 
 /*
@@ -408,7 +411,7 @@ extern void mlock_vma_page(struct page *page);
 extern unsigned int munlock_vma_page(struct page *page);
 
 extern int mlock_future_check(struct mm_struct *mm, unsigned long flags,
-                              unsigned long len);
+			      unsigned long len);
 
 /*
  * Clear the page's PageMlocked().  This can be useful in a situation where
@@ -428,28 +431,28 @@ extern pmd_t maybe_pmd_mkwrite(pmd_t pmd, struct vm_area_struct *vma);
  * Returns -EFAULT if all of the page is outside the range of vma.
  * If page is a compound head, the entire compound page is considered.
  */
-static inline unsigned long
-vma_address(struct page *page, struct vm_area_struct *vma)
+static inline unsigned long vma_address(struct page *page,
+					struct vm_area_struct *vma)
 {
-    pgoff_t pgoff;
-    unsigned long address;
+	pgoff_t pgoff;
+	unsigned long address;
 
-    VM_BUG_ON_PAGE(PageKsm(page), page);	/* KSM page->index unusable */
-    pgoff = page_to_pgoff(page);
-    if (pgoff >= vma->vm_pgoff) {
-        address = vma->vm_start +
-                  ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
-        /* Check for address beyond vma (or wrapped through 0?) */
-        if (address < vma->vm_start || address >= vma->vm_end)
-            address = -EFAULT;
-    } else if (PageHead(page) &&
-               pgoff + compound_nr(page) - 1 >= vma->vm_pgoff) {
-        /* Test above avoids possibility of wrap to 0 on 32-bit */
-        address = vma->vm_start;
-    } else {
-        address = -EFAULT;
-    }
-    return address;
+	VM_BUG_ON_PAGE(PageKsm(page), page); /* KSM page->index unusable */
+	pgoff = page_to_pgoff(page);
+	if (pgoff >= vma->vm_pgoff) {
+		address =
+			vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
+		/* Check for address beyond vma (or wrapped through 0?) */
+		if (address < vma->vm_start || address >= vma->vm_end)
+			address = -EFAULT;
+	} else if (PageHead(page) &&
+		   pgoff + compound_nr(page) - 1 >= vma->vm_pgoff) {
+		/* Test above avoids possibility of wrap to 0 on 32-bit */
+		address = vma->vm_start;
+	} else {
+		address = -EFAULT;
+	}
+	return address;
 }
 
 /*
@@ -457,45 +460,49 @@ vma_address(struct page *page, struct vm_area_struct *vma)
  * Assumes that vma_address() already returned a good starting address.
  * If page is a compound head, the entire compound page is considered.
  */
-static inline unsigned long
-vma_address_end(struct page *page, struct vm_area_struct *vma)
+static inline unsigned long vma_address_end(struct page *page,
+					    struct vm_area_struct *vma)
 {
-    pgoff_t pgoff;
-    unsigned long address;
+	pgoff_t pgoff;
+	unsigned long address;
 
-    VM_BUG_ON_PAGE(PageKsm(page), page);	/* KSM page->index unusable */
-    pgoff = page_to_pgoff(page) + compound_nr(page);
-    address = vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
-    /* Check for address beyond vma (or wrapped through 0?) */
-    if (address < vma->vm_start || address > vma->vm_end)
-        address = vma->vm_end;
-    return address;
+	VM_BUG_ON_PAGE(PageKsm(page), page); /* KSM page->index unusable */
+	pgoff = page_to_pgoff(page) + compound_nr(page);
+	address = vma->vm_start + ((pgoff - vma->vm_pgoff) << PAGE_SHIFT);
+	/* Check for address beyond vma (or wrapped through 0?) */
+	if (address < vma->vm_start || address > vma->vm_end)
+		address = vma->vm_end;
+	return address;
 }
 
 static inline struct file *maybe_unlock_mmap_for_io(struct vm_fault *vmf,
-        struct file *fpin)
+						    struct file *fpin)
 {
-    int flags = vmf->flags;
+	int flags = vmf->flags;
 
-    if (fpin)
-        return fpin;
+	if (fpin)
+		return fpin;
 
-    /*
+	/*
      * FAULT_FLAG_RETRY_NOWAIT means we don't want to wait on page locks or
      * anything, so we only pin the file and drop the mmap_lock if only
      * FAULT_FLAG_ALLOW_RETRY is set, while this is the first attempt.
      */
-    if (fault_flag_allow_retry_first(flags) &&
-            !(flags & FAULT_FLAG_RETRY_NOWAIT)) {
-        fpin = get_file(vmf->vma->vm_file);
-        mmap_read_unlock(vmf->vma->vm_mm);
-    }
-    return fpin;
+	if (fault_flag_allow_retry_first(flags) &&
+	    !(flags & FAULT_FLAG_RETRY_NOWAIT)) {
+		fpin = get_file(vmf->vma->vm_file);
+		mmap_read_unlock(vmf->vma->vm_mm);
+	}
+	return fpin;
 }
 
 #else /* !CONFIG_MMU */
-static inline void clear_page_mlock(struct page *page) { }
-static inline void mlock_vma_page(struct page *page) { }
+static inline void clear_page_mlock(struct page *page)
+{
+}
+static inline void mlock_vma_page(struct page *page)
+{
+}
 static inline void vunmap_range_noflush(unsigned long start, unsigned long end)
 {
 }
@@ -508,54 +515,51 @@ static inline void vunmap_range_noflush(unsigned long start, unsigned long end)
  */
 static inline struct page *mem_map_offset(struct page *base, int offset)
 {
-    if (unlikely(offset >= MAX_ORDER_NR_PAGES))
-        return nth_page(base, offset);
-    return base + offset;
+	if (unlikely(offset >= MAX_ORDER_NR_PAGES))
+		return nth_page(base, offset);
+	return base + offset;
 }
 
 /*
  * Iterator over all subpages within the maximally aligned gigantic
  * page 'base'.  Handle any discontiguity in the mem_map.
  */
-static inline struct page *mem_map_next(struct page *iter,
-                                        struct page *base, int offset)
+static inline struct page *mem_map_next(struct page *iter, struct page *base,
+					int offset)
 {
-    if (unlikely((offset & (MAX_ORDER_NR_PAGES - 1)) == 0)) {
-        unsigned long pfn = page_to_pfn(base) + offset;
-        if (!pfn_valid(pfn))
-            return NULL;
-        return pfn_to_page(pfn);
-    }
-    return iter + 1;
+	if (unlikely((offset & (MAX_ORDER_NR_PAGES - 1)) == 0)) {
+		unsigned long pfn = page_to_pfn(base) + offset;
+		if (!pfn_valid(pfn))
+			return NULL;
+		return pfn_to_page(pfn);
+	}
+	return iter + 1;
 }
 
 /* Memory initialisation debug and verification */
-enum mminit_level {
-    MMINIT_WARNING,
-    MMINIT_VERIFY,
-    MMINIT_TRACE
-};
+enum mminit_level { MMINIT_WARNING, MMINIT_VERIFY, MMINIT_TRACE };
 
 #ifdef CONFIG_DEBUG_MEMORY_INIT
 
 extern int mminit_loglevel;
 
-#define mminit_dprintk(level, prefix, fmt, arg...) \
-do { \
-	if (level < mminit_loglevel) { \
-		if (level <= MMINIT_WARNING) \
-			pr_warn("mminit::" prefix " " fmt, ##arg);	\
-		else \
-			printk(KERN_DEBUG "mminit::" prefix " " fmt, ##arg); \
-	} \
-} while (0)
+#define mminit_dprintk(level, prefix, fmt, arg...)                             \
+	do {                                                                   \
+		if (level < mminit_loglevel) {                                 \
+			if (level <= MMINIT_WARNING)                           \
+				pr_warn("mminit::" prefix " " fmt, ##arg);     \
+			else                                                   \
+				printk(KERN_DEBUG "mminit::" prefix " " fmt,   \
+				       ##arg);                                 \
+		}                                                              \
+	} while (0)
 
 extern void mminit_verify_pageflags_layout(void);
 extern void mminit_verify_zonelist(void);
 #else
 
-static inline void mminit_dprintk(enum mminit_level level,
-                                  const char *prefix, const char *fmt, ...)
+static inline void mminit_dprintk(enum mminit_level level, const char *prefix,
+				  const char *fmt, ...)
 {
 }
 
@@ -571,31 +575,31 @@ static inline void mminit_verify_zonelist(void)
 /* mminit_validate_memmodel_limits is independent of CONFIG_DEBUG_MEMORY_INIT */
 #if defined(CONFIG_SPARSEMEM)
 extern void mminit_validate_memmodel_limits(unsigned long *start_pfn,
-        unsigned long *end_pfn);
+					    unsigned long *end_pfn);
 #else
 static inline void mminit_validate_memmodel_limits(unsigned long *start_pfn,
-        unsigned long *end_pfn)
+						   unsigned long *end_pfn)
 {
 }
 #endif /* CONFIG_SPARSEMEM */
 
-#define NODE_RECLAIM_NOSCAN	-2
-#define NODE_RECLAIM_FULL	-1
-#define NODE_RECLAIM_SOME	0
-#define NODE_RECLAIM_SUCCESS	1
+#define NODE_RECLAIM_NOSCAN -2
+#define NODE_RECLAIM_FULL -1
+#define NODE_RECLAIM_SOME 0
+#define NODE_RECLAIM_SUCCESS 1
 
 #ifdef CONFIG_NUMA
 extern int node_reclaim(struct pglist_data *, gfp_t, unsigned int);
 extern int find_next_best_node(int node, nodemask_t *used_node_mask);
 #else
 static inline int node_reclaim(struct pglist_data *pgdat, gfp_t mask,
-                               unsigned int order)
+			       unsigned int order)
 {
-    return NODE_RECLAIM_NOSCAN;
+	return NODE_RECLAIM_NOSCAN;
 }
 static inline int find_next_best_node(int node, nodemask_t *used_node_mask)
 {
-    return NUMA_NO_NODE;
+	return NUMA_NO_NODE;
 }
 #endif
 
@@ -608,21 +612,21 @@ extern u64 hwpoison_filter_flags_value;
 extern u64 hwpoison_filter_memcg;
 extern u32 hwpoison_filter_enable;
 
-extern unsigned long  __must_check vm_mmap_pgoff(struct file *, unsigned long,
-        unsigned long, unsigned long,
-        unsigned long, unsigned long);
+extern unsigned long __must_check vm_mmap_pgoff(struct file *, unsigned long,
+						unsigned long, unsigned long,
+						unsigned long, unsigned long);
 
 extern void set_pageblock_order(void);
 unsigned int reclaim_clean_pages_from_list(struct zone *zone,
-        struct list_head *page_list);
+					   struct list_head *page_list);
 /* The ALLOC_WMARK bits are used as an index to zone->watermark */
-#define ALLOC_WMARK_MIN		WMARK_MIN
-#define ALLOC_WMARK_LOW		WMARK_LOW
-#define ALLOC_WMARK_HIGH	WMARK_HIGH
-#define ALLOC_NO_WATERMARKS	0x04 /* don't check watermarks at all */
+#define ALLOC_WMARK_MIN WMARK_MIN
+#define ALLOC_WMARK_LOW WMARK_LOW
+#define ALLOC_WMARK_HIGH WMARK_HIGH
+#define ALLOC_NO_WATERMARKS 0x04 /* don't check watermarks at all */
 
 /* Mask to get the watermark bits */
-#define ALLOC_WMARK_MASK	(ALLOC_NO_WATERMARKS-1)
+#define ALLOC_WMARK_MASK (ALLOC_NO_WATERMARKS - 1)
 
 /*
  * Only MMU archs have async oom victim reclaim - aka oom_reaper so we
@@ -630,25 +634,25 @@ unsigned int reclaim_clean_pages_from_list(struct zone *zone,
  * !MMU
  */
 #ifdef CONFIG_MMU
-#define ALLOC_OOM		0x08
+#define ALLOC_OOM 0x08
 #else
-#define ALLOC_OOM		ALLOC_NO_WATERMARKS
+#define ALLOC_OOM ALLOC_NO_WATERMARKS
 #endif
 
-#define ALLOC_HARDER		 0x10 /* try to alloc harder */
-#define ALLOC_HIGH		 0x20 /* __GFP_HIGH set */
-#define ALLOC_CPUSET		 0x40 /* check for correct cpuset */
-#define ALLOC_CMA		 0x80 /* allow allocations from CMA areas */
+#define ALLOC_HARDER 0x10 /* try to alloc harder */
+#define ALLOC_HIGH 0x20 /* __GFP_HIGH set */
+#define ALLOC_CPUSET 0x40 /* check for correct cpuset */
+#define ALLOC_CMA 0x80 /* allow allocations from CMA areas */
 #ifdef CONFIG_ZONE_DMA32
-#define ALLOC_NOFRAGMENT	0x100 /* avoid mixing pageblock types */
+#define ALLOC_NOFRAGMENT 0x100 /* avoid mixing pageblock types */
 #else
-#define ALLOC_NOFRAGMENT	  0x0
+#define ALLOC_NOFRAGMENT 0x0
 #endif
-#define ALLOC_KSWAPD		0x800 /* allow waking of kswapd, __GFP_KSWAPD_RECLAIM set */
+#define ALLOC_KSWAPD                                                           \
+	0x800 /* allow waking of kswapd, __GFP_KSWAPD_RECLAIM set */
 
 enum ttu_flags;
 struct tlbflush_unmap_batch;
-
 
 /*
  * only for MM internal work items which do not depend on
@@ -678,20 +682,20 @@ extern const struct trace_print_flags gfpflag_names[];
 
 static inline bool is_migrate_highatomic(enum migratetype migratetype)
 {
-    return migratetype == MIGRATE_HIGHATOMIC;
+	return migratetype == MIGRATE_HIGHATOMIC;
 }
 
 static inline bool is_migrate_highatomic_page(struct page *page)
 {
-    return get_pageblock_migratetype(page) == MIGRATE_HIGHATOMIC;
+	return get_pageblock_migratetype(page) == MIGRATE_HIGHATOMIC;
 }
 
 void setup_zone_pageset(struct zone *zone);
 
 struct migration_target_control {
-    int nid;		/* preferred node id */
-    nodemask_t *nmask;
-    gfp_t gfp_mask;
+	int nid; /* preferred node id */
+	nodemask_t *nmask;
+	gfp_t gfp_mask;
 };
 
 /*
@@ -699,19 +703,21 @@ struct migration_target_control {
  */
 #ifdef CONFIG_MMU
 int vmap_pages_range_noflush(unsigned long addr, unsigned long end,
-                             pgprot_t prot, struct page **pages, unsigned int page_shift);
+			     pgprot_t prot, struct page **pages,
+			     unsigned int page_shift);
 #else
-static inline
-int vmap_pages_range_noflush(unsigned long addr, unsigned long end,
-                             pgprot_t prot, struct page **pages, unsigned int page_shift)
+static inline int vmap_pages_range_noflush(unsigned long addr,
+					   unsigned long end, pgprot_t prot,
+					   struct page **pages,
+					   unsigned int page_shift)
 {
-    return -EINVAL;
+	return -EINVAL;
 }
 #endif
 
 void vunmap_range_noflush(unsigned long start, unsigned long end);
 
 int numa_migrate_prep(struct page *page, struct vm_area_struct *vma,
-                      unsigned long addr, int page_nid, int *flags);
+		      unsigned long addr, int page_nid, int *flags);
 
-#endif	/* __MM_INTERNAL_H */
+#endif /* __MM_INTERNAL_H */
