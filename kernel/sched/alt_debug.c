@@ -21,10 +21,10 @@
  } while (0)
 
 void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
-			  struct seq_file *m)
+                          struct seq_file *m)
 {
-	SEQ_printf(m, "%s (%d, #threads: %d)\n", p->comm, task_pid_nr_ns(p, ns),
-						get_nr_threads(p));
+    SEQ_printf(m, "%s (%d, #threads: %d)\n", p->comm, task_pid_nr_ns(p, ns),
+               get_nr_threads(p));
 }
 
 void proc_sched_set_task(struct task_struct *p)

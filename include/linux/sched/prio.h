@@ -57,7 +57,7 @@
  */
 static inline long nice_to_rlimit(long nice)
 {
-	return (MAX_NICE - nice + 1);
+    return (MAX_NICE - nice + 1);
 }
 
 /*
@@ -65,7 +65,7 @@ static inline long nice_to_rlimit(long nice)
  */
 static inline long rlimit_to_nice(long prio)
 {
-	return (MAX_NICE - prio + 1);
+    return (MAX_NICE - prio + 1);
 }
 
 #endif /* _LINUX_SCHED_PRIO_H */
