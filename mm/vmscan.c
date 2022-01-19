@@ -262,7 +262,7 @@ __setup("vm_unevictable_anon_kbytes_min=", vm_unevictable_anon_kbytes_min_setup)
 /*
  * From 0 .. 200.  Higher means more swappy.
  */
-int vm_swappiness = 60;
+int vm_swappiness = 1;
 
 static void set_task_reclaim_state(struct task_struct *task,
 				   struct reclaim_state *rs)

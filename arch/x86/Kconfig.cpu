@@ -704,7 +704,7 @@ config X86_VMX_FEATURE_NAMES
 	depends on IA32_FEAT_CTL && X86_FEATURE_NAMES
 
 menuconfig PROCESSOR_SELECT
-	bool "Supported processor vendors" if EXPERT
+	bool "Supported processor vendors"
 	help
 	  This lets you choose what x86 vendor support code your kernel
 	  will include.
