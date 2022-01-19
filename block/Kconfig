@@ -26,7 +26,13 @@ menuconfig BLOCK
 
 if BLOCK
 
+config BLK_BIO_IOCOST
+	bool
+
 config BLK_RQ_ALLOC_TIME
+	bool
+
+config BLK_RQ_BLKCG_GQ
 	bool
 
 config BLK_CGROUP_RWSTAT
@@ -111,7 +117,7 @@ config BLK_WBT_MQ
 	Enable writeback throttling by default for request-based block devices.
 
 config BLK_CGROUP_IOLATENCY
-	bool "Enable support for latency based cgroup IO protection"
+	tristate "Enable support for latency based cgroup IO protection"
 	depends on BLK_CGROUP
 	help
 	Enabling this option enables the .latency interface for IO throttling.
@@ -131,10 +137,10 @@ config BLK_CGROUP_FC_APPID
 	  application specific identification into the FC frame.
 
 config BLK_CGROUP_IOCOST
-	bool "Enable support for cost model based cgroup IO controller"
+	tristate "Enable support for cost model based cgroup IO controller"
 	depends on BLK_CGROUP
-	select BLK_RQ_IO_DATA_LEN
 	select BLK_RQ_ALLOC_TIME
+	select BLK_BIO_IOCOST
 	help
 	Enabling this option enables the .weight interface for cost
 	model based proportional IO control.  The IO controller
@@ -142,13 +148,22 @@ config BLK_CGROUP_IOCOST
 	their share of the overall weight distribution.
 
 config BLK_CGROUP_IOPRIO
-	bool "Cgroup I/O controller for assigning an I/O priority class"
+	tristate "Cgroup I/O controller for assigning an I/O priority class"
 	depends on BLK_CGROUP
 	help
 	Enable the .prio interface for assigning an I/O priority class to
 	requests. The I/O priority class affects the order in which an I/O
 	scheduler and block devices process requests. Only some I/O schedulers
 	and some block devices support I/O priorities.
+
+config BLK_CGROUP_IOSTAT
+	tristate "IO statistics monitor per cgroup"
+	select BLK_RQ_BLKCG_GQ
+	select BLK_RQ_ALLOC_TIME
+	depends on BLK_CGROUP
+	help
+	Monitor IO statistics, including bw, iops, queue latency and device
+	latency, in per-cgroup level.
 
 config BLK_DEBUG_FS
 	bool "Block layer debugging information in debugfs"

@@ -482,11 +482,8 @@ static ssize_t queue_wb_lat_store(struct request_queue *q, const char *page,
 		return -EINVAL;
 
 	rqos = wbt_rq_qos(q);
-	if (!rqos) {
-		ret = wbt_init(q);
-		if (ret)
-			return ret;
-	}
+	if (!rqos)
+		return -EOPNOTSUPP;
 
 	if (val == -1)
 		val = wbt_default_latency_nsec(q);
@@ -573,6 +570,7 @@ QUEUE_RO_ENTRY(queue_max_segments, "max_segments");
 QUEUE_RO_ENTRY(queue_max_integrity_segments, "max_integrity_segments");
 QUEUE_RO_ENTRY(queue_max_segment_size, "max_segment_size");
 QUEUE_RW_ENTRY(elv_iosched, "scheduler");
+QUEUE_RW_ENTRY(queue_qos, "qos");
 
 QUEUE_RO_ENTRY(queue_logical_block_size, "logical_block_size");
 QUEUE_RO_ENTRY(queue_physical_block_size, "physical_block_size");
@@ -632,6 +630,7 @@ static struct attribute *queue_attrs[] = {
 	&queue_max_integrity_segments_entry.attr,
 	&queue_max_segment_size_entry.attr,
 	&elv_iosched_entry.attr,
+	&queue_qos_entry.attr,
 	&queue_hw_sector_size_entry.attr,
 	&queue_logical_block_size_entry.attr,
 	&queue_physical_block_size_entry.attr,
