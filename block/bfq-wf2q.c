@@ -142,6 +142,16 @@ static bool bfq_update_next_in_service(struct bfq_sched_data *sd,
 
 #ifdef CONFIG_BFQ_GROUP_IOSCHED
 
+struct bfq_group *bfq_bfqq_to_bfqg(struct bfq_queue *bfqq)
+{
+	struct bfq_entity *group_entity = bfqq->entity.parent;
+
+	if (!group_entity)
+		group_entity = &bfqq->bfqd->root_group->entity;
+
+	return container_of(group_entity, struct bfq_group, entity);
+}
+
 /*
  * Returns true if this budget changes may let next_in_service->parent
  * become the next_in_service entity for its parent entity.
@@ -198,7 +208,7 @@ static bool bfq_no_longer_next_in_service(struct bfq_entity *entity)
 	if (bfq_entity_to_bfqq(entity))
 		return true;
 
-	bfqg = bfq_entity_to_bfqg(entity);
+	bfqg = container_of(entity, struct bfq_group, entity);
 
 	/*
 	 * The field active_entities does not always contain the
@@ -219,6 +229,11 @@ static bool bfq_no_longer_next_in_service(struct bfq_entity *entity)
 }
 
 #else /* CONFIG_BFQ_GROUP_IOSCHED */
+
+struct bfq_group *bfq_bfqq_to_bfqg(struct bfq_queue *bfqq)
+{
+	return bfqq->bfqd->root_group;
+}
 
 static bool bfq_update_parent_budget(struct bfq_entity *next_in_service)
 {
@@ -251,15 +266,6 @@ struct bfq_queue *bfq_entity_to_bfqq(struct bfq_entity *entity)
 	return bfqq;
 }
 
-struct bfq_group *bfq_entity_to_bfqg(struct bfq_entity *entity)
-{
-	struct bfq_group *bfqg = NULL;
-
-	if (entity->my_sched_data)
-		bfqg = container_of(entity, struct bfq_group, entity);
-
-	return bfqg;
-}
 
 /**
  * bfq_delta - map service into the virtual time domain.
@@ -483,7 +489,7 @@ static void bfq_active_insert(struct bfq_service_tree *st,
 #ifdef CONFIG_BFQ_GROUP_IOSCHED
 	sd = entity->sched_data;
 	bfqg = container_of(sd, struct bfq_group, sched_data);
-	bfqd = bfqg->bfqd;
+	bfqd = (struct bfq_data *)bfqg->bfqd;
 #endif
 	if (bfqq)
 		list_add(&bfqq->bfqq_list, &bfqq->bfqd->active_list);
@@ -512,9 +518,8 @@ unsigned short bfq_ioprio_to_weight(int ioprio)
  */
 static unsigned short bfq_weight_to_ioprio(int weight)
 {
-	int ioprio = IOPRIO_NR_LEVELS  - weight / BFQ_WEIGHT_CONVERSION_COEFF;
-
-	return ioprio < 0 ? 0 : min_t(int, ioprio, IOPRIO_NR_LEVELS - 1);
+	return max_t(int, 0,
+		     IOPRIO_NR_LEVELS * BFQ_WEIGHT_CONVERSION_COEFF - weight);
 }
 
 static void bfq_get_entity(struct bfq_entity *entity)
@@ -560,7 +565,7 @@ static struct rb_node *bfq_find_deepest(struct rb_node *node)
 
 /**
  * bfq_active_extract - remove an entity from the active tree.
- * @st: the service_tree containing the entity.
+ * @st: the service_tree containing the tree.
  * @entity: the entity being removed.
  */
 static void bfq_active_extract(struct bfq_service_tree *st,
@@ -583,7 +588,7 @@ static void bfq_active_extract(struct bfq_service_tree *st,
 #ifdef CONFIG_BFQ_GROUP_IOSCHED
 	sd = entity->sched_data;
 	bfqg = container_of(sd, struct bfq_group, sched_data);
-	bfqd = bfqg->bfqd;
+	bfqd = (struct bfq_data *)bfqg->bfqd;
 #endif
 	if (bfqq)
 		list_del(&bfqq->bfqq_list);
@@ -729,7 +734,7 @@ __bfq_entity_update_weight_prio(struct bfq_service_tree *old_st,
 		else {
 			sd = entity->my_sched_data;
 			bfqg = container_of(sd, struct bfq_group, sched_data);
-			bfqd = bfqg->bfqd;
+			bfqd = (struct bfq_data *)bfqg->bfqd;
 		}
 #endif
 
@@ -825,7 +830,7 @@ void bfq_bfqq_served(struct bfq_queue *bfqq, int served)
 		bfqq->service_from_wr += served;
 
 	bfqq->service_from_backlogged += served;
-	for_each_entity_not_root(entity) {
+	for_each_entity(entity) {
 		st = bfq_entity_service_tree(entity);
 
 		entity->service += served;
@@ -867,7 +872,7 @@ void bfq_bfqq_charge_time(struct bfq_data *bfqd, struct bfq_queue *bfqq,
 			  unsigned long time_ms)
 {
 	struct bfq_entity *entity = &bfqq->entity;
-	unsigned long timeout_ms = jiffies_to_msecs(bfqd->bfq_timeout);
+	unsigned long timeout_ms = jiffies_to_msecs(bfq_timeout);
 	unsigned long bounded_time_ms = min(time_ms, timeout_ms);
 	int serv_to_charge_for_time =
 		(bfqd->bfq_max_budget * bounded_time_ms) / timeout_ms;
@@ -945,8 +950,6 @@ static void bfq_update_fin_time_enqueue(struct bfq_entity *entity,
  * __bfq_activate_entity - handle activation of entity.
  * @entity: the entity being activated.
  * @non_blocking_wait_rq: true if entity was waiting for a request
- * @count_group: if entity represents group, true if the group will be
- * counted in 'num_groups_with_pending_reqs'.
  *
  * Called for a 'true' activation, i.e., if entity is not active and
  * one of its children receives a new request.
@@ -956,19 +959,11 @@ static void bfq_update_fin_time_enqueue(struct bfq_entity *entity,
  * from its idle tree.
  */
 static void __bfq_activate_entity(struct bfq_entity *entity,
-				  bool non_blocking_wait_rq,
-				  bool count_group)
+				  bool non_blocking_wait_rq)
 {
 	struct bfq_service_tree *st = bfq_entity_service_tree(entity);
 	bool backshifted = false;
 	unsigned long long min_vstart;
-
-	if (is_root_entity(entity))
-#ifdef CONFIG_BFQ_GROUP_IOSCHED
-		goto update;
-#else
-		return;
-#endif
 
 	/* See comments on bfq_fqq_update_budg_for_activation */
 	if (non_blocking_wait_rq && bfq_gt(st->vtime, entity->finish)) {
@@ -1004,12 +999,10 @@ static void __bfq_activate_entity(struct bfq_entity *entity,
 		entity->on_st_or_in_serv = true;
 	}
 
-	bfq_update_fin_time_enqueue(entity, st, backshifted);
-
 #ifdef CONFIG_BFQ_GROUP_IOSCHED
-update:
-	if (count_group && !bfq_entity_to_bfqq(entity)) { /* bfq_group */
-		struct bfq_group *bfqg = bfq_entity_to_bfqg(entity);
+	if (!bfq_entity_to_bfqq(entity)) { /* bfq_group */
+		struct bfq_group *bfqg =
+			container_of(entity, struct bfq_group, entity);
 		struct bfq_data *bfqd = bfqg->bfqd;
 
 		if (!entity->in_groups_with_pending_reqs) {
@@ -1018,6 +1011,8 @@ update:
 		}
 	}
 #endif
+
+	bfq_update_fin_time_enqueue(entity, st, backshifted);
 }
 
 /**
@@ -1103,13 +1098,11 @@ static void __bfq_requeue_entity(struct bfq_entity *entity)
 
 static void __bfq_activate_requeue_entity(struct bfq_entity *entity,
 					  struct bfq_sched_data *sd,
-					  bool non_blocking_wait_rq,
-					  bool count_group)
+					  bool non_blocking_wait_rq)
 {
 	struct bfq_service_tree *st = bfq_entity_service_tree(entity);
 
-	if (sd && (sd->in_service_entity == entity ||
-		   entity->tree == &st->active))
+	if (sd->in_service_entity == entity || entity->tree == &st->active)
 		 /*
 		  * in service or already queued on the active tree,
 		  * requeue or reposition
@@ -1120,8 +1113,7 @@ static void __bfq_activate_requeue_entity(struct bfq_entity *entity,
 		 * Not in service and not queued on its active tree:
 		 * the activity is idle and this is a true activation.
 		 */
-		__bfq_activate_entity(entity, non_blocking_wait_rq,
-				      count_group);
+		__bfq_activate_entity(entity, non_blocking_wait_rq);
 }
 
 
@@ -1143,14 +1135,12 @@ static void bfq_activate_requeue_entity(struct bfq_entity *entity,
 					bool requeue, bool expiration)
 {
 	struct bfq_sched_data *sd;
-	int depth = 0;
 
 	for_each_entity(entity) {
 		sd = entity->sched_data;
-		__bfq_activate_requeue_entity(entity, sd, non_blocking_wait_rq,
-					      depth++ == 1);
+		__bfq_activate_requeue_entity(entity, sd, non_blocking_wait_rq);
 
-		if (sd && !bfq_update_next_in_service(sd, entity, expiration) &&
+		if (!bfq_update_next_in_service(sd, entity, expiration) &&
 		    !requeue)
 			break;
 	}
@@ -1170,7 +1160,6 @@ bool __bfq_deactivate_entity(struct bfq_entity *entity, bool ins_into_idle_tree)
 {
 	struct bfq_sched_data *sd = entity->sched_data;
 	struct bfq_service_tree *st;
-	int idx = bfq_class_idx(entity);
 	bool is_in_service;
 
 	if (!entity->on_st_or_in_serv) /*
@@ -1210,7 +1199,6 @@ bool __bfq_deactivate_entity(struct bfq_entity *entity, bool ins_into_idle_tree)
 	else
 		bfq_idle_insert(st, entity);
 
-	sd->bfq_class_last_service[idx] = jiffies;
 	return true;
 }
 
@@ -1228,7 +1216,7 @@ static void bfq_deactivate_entity(struct bfq_entity *entity,
 	struct bfq_sched_data *sd;
 	struct bfq_entity *parent = NULL;
 
-	for_each_entity_not_root_safe(entity, parent) {
+	for_each_entity_safe(entity, parent) {
 		sd = entity->sched_data;
 
 		if (!__bfq_deactivate_entity(entity, ins_into_idle_tree)) {
@@ -1297,7 +1285,7 @@ static void bfq_deactivate_entity(struct bfq_entity *entity,
 	 * is not the case.
 	 */
 	entity = parent;
-	for_each_entity_not_root(entity) {
+	for_each_entity(entity) {
 		/*
 		 * Invoke __bfq_requeue_entity on entity, even if
 		 * already active, to requeue/reposition it in the
@@ -1387,7 +1375,6 @@ left:
 /**
  * __bfq_lookup_next_entity - return the first eligible entity in @st.
  * @st: the service tree.
- * @in_service: Check whether an in-service entity exists.
  *
  * If there is no in-service entity for the sched_data st belongs to,
  * then return the entity that will be set in service if:
@@ -1440,45 +1427,6 @@ __bfq_lookup_next_entity(struct bfq_service_tree *st, bool in_service)
 	return entity;
 }
 
-static int bfq_select_next_class(struct bfq_sched_data *sd)
-{
-	struct bfq_service_tree *st = sd->service_tree;
-	unsigned long last_check, last_serve;
-	int i, class_idx, next_class = 0;
-	bool found = false;
-
-	/*
-	 * we needed to guarantee a minimum bandwidth for each class (if
-	 * there is some active entity in this class). This should also
-	 * mitigate priority-inversion problems in case a low priority
-	 * task is holding file system resources.
-	 */
-	last_check = sd->class_timeout_last_check;
-	if (time_is_after_jiffies(last_check + BFQ_CLASS_TIMEOUT))
-		return next_class;
-
-	sd->class_timeout_last_check = jiffies;
-	for (i = 0; i < BFQ_IOPRIO_CLASSES; i++) {
-		class_idx = (sd->next_class_index + i) % BFQ_IOPRIO_CLASSES;
-		last_serve = sd->bfq_class_last_service[class_idx];
-
-		if (time_is_after_jiffies(last_serve + BFQ_CLASS_TIMEOUT))
-			continue;
-
-		if (!RB_EMPTY_ROOT(&(st + class_idx)->active)) {
-			if (found)
-				continue;
-
-			next_class = class_idx++;
-			class_idx %= BFQ_IOPRIO_CLASSES;
-			sd->next_class_index = class_idx;
-			found = true;
-		}
-		sd->bfq_class_last_service[class_idx] = jiffies;
-	}
-	return next_class;
-}
-
 /**
  * bfq_lookup_next_entity - return the first eligible entity in @sd.
  * @sd: the sched_data.
@@ -1492,8 +1440,24 @@ static struct bfq_entity *bfq_lookup_next_entity(struct bfq_sched_data *sd,
 						 bool expiration)
 {
 	struct bfq_service_tree *st = sd->service_tree;
+	struct bfq_service_tree *idle_class_st = st + (BFQ_IOPRIO_CLASSES - 1);
 	struct bfq_entity *entity = NULL;
-	int class_idx = bfq_select_next_class(sd);
+	int class_idx = 0;
+
+	/*
+	 * Choose from idle class, if needed to guarantee a minimum
+	 * bandwidth to this class (and if there is some active entity
+	 * in idle class). This should also mitigate
+	 * priority-inversion problems in case a low priority task is
+	 * holding file system resources.
+	 */
+	if (time_is_before_jiffies(sd->bfq_class_idle_last_service +
+				   BFQ_CL_IDLE_TIMEOUT)) {
+		if (!RB_EMPTY_ROOT(&idle_class_st->active))
+			class_idx = BFQ_IOPRIO_CLASSES - 1;
+		/* About to be served if backlogged, or not yet backlogged */
+		sd->bfq_class_idle_last_service = jiffies;
+	}
 
 	/*
 	 * Find the next entity to serve for the highest-priority
@@ -1621,7 +1585,7 @@ struct bfq_queue *bfq_get_next_queue(struct bfq_data *bfqd)
 	 * We can finally update all next-to-serve entities along the
 	 * path from the leaf entity just set in service to the root.
 	 */
-	for_each_entity_not_root(entity) {
+	for_each_entity(entity) {
 		struct bfq_sched_data *sd = entity->sched_data;
 
 		if (!bfq_update_next_in_service(sd, NULL, false))
@@ -1648,7 +1612,7 @@ bool __bfq_bfqd_reset_in_service(struct bfq_data *bfqd)
 	 * execute the final step: reset in_service_entity along the
 	 * path from entity to the root.
 	 */
-	for_each_entity_not_root(entity)
+	for_each_entity(entity)
 		entity->sched_data->in_service_entity = NULL;
 
 	/*

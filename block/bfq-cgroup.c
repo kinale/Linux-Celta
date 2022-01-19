@@ -224,7 +224,7 @@ void bfqg_stats_update_io_add(struct bfq_group *bfqg, struct bfq_queue *bfqq,
 {
 	blkg_rwstat_add(&bfqg->stats.queued, op, 1);
 	bfqg_stats_end_empty_time(&bfqg->stats);
-	if (!(bfqq == bfqg->bfqd->in_service_queue))
+	if (!(bfqq == ((struct bfq_data *)bfqg->bfqd)->in_service_queue))
 		bfqg_stats_set_start_group_wait_time(bfqg, bfqq_group(bfqq));
 }
 
@@ -309,7 +309,8 @@ struct bfq_group *bfqq_group(struct bfq_queue *bfqq)
 {
 	struct bfq_entity *group_entity = bfqq->entity.parent;
 
-	return group_entity ? bfq_entity_to_bfqg(group_entity) :
+	return group_entity ? container_of(group_entity, struct bfq_group,
+					   entity) :
 			      bfqq->bfqd->root_group;
 }
 
@@ -426,7 +427,6 @@ void bfq_init_entity(struct bfq_entity *entity, struct bfq_group *bfqg)
 
 	entity->weight = entity->new_weight;
 	entity->orig_weight = entity->new_weight;
-	entity->prio_changed = 0;
 	if (bfqq) {
 		bfqq->ioprio = bfqq->new_ioprio;
 		bfqq->ioprio_class = bfqq->new_ioprio_class;
@@ -436,7 +436,7 @@ void bfq_init_entity(struct bfq_entity *entity, struct bfq_group *bfqg)
 		 */
 		bfqg_and_blkg_get(bfqg);
 	}
-	entity->parent = &bfqg->entity;
+	entity->parent = bfqg->my_entity; /* NULL for root group */
 	entity->sched_data = &bfqg->sched_data;
 }
 
@@ -557,7 +557,6 @@ static void bfq_pd_init(struct blkg_policy_data *pd)
 				   */
 	bfqg->bfqd = bfqd;
 	bfqg->active_entities = 0;
-	bfqg->num_entities_with_pending_reqs = 0;
 	bfqg->rq_pos_tree = RB_ROOT;
 }
 
@@ -615,7 +614,8 @@ struct bfq_group *bfq_find_set_group(struct bfq_data *bfqd,
 	 */
 	entity = &bfqg->entity;
 	for_each_entity(entity) {
-		struct bfq_group *curr_bfqg = bfq_entity_to_bfqg(entity);
+		struct bfq_group *curr_bfqg = container_of(entity,
+						struct bfq_group, entity);
 		if (curr_bfqg != bfqd->root_group) {
 			parent = bfqg_parent(curr_bfqg);
 			if (!parent)
@@ -645,21 +645,7 @@ void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
 		   struct bfq_group *bfqg)
 {
 	struct bfq_entity *entity = &bfqq->entity;
-	struct bfq_group *old_parent = bfqq_group(bfqq);
 
-	/*
-	* No point to move bfqq to the same group, which can happen when
-	* root group is offlined
-	*/
-	if (old_parent == bfqg)
-		return;
-
-	/*
-	 * oom_bfqq is not allowed to move, oom_bfqq will hold ref to root_group
-	 * until elevator exit.
-	 */
-	if (bfqq == &bfqd->oom_bfqq)
-		return;
 	/*
 	 * Get extra reference to prevent bfqq from being freed in
 	 * next possible expire or deactivate.
@@ -680,8 +666,7 @@ void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
 		bfq_deactivate_bfqq(bfqd, bfqq, false, false);
 	else if (entity->on_st_or_in_serv)
 		bfq_put_idle_entity(bfq_entity_service_tree(entity), entity);
-	hlist_del(&bfqq->children_node);
-	bfqg_and_blkg_put(old_parent);
+	bfqg_and_blkg_put(bfqq_group(bfqq));
 
 	if (entity->parent &&
 	    entity->parent->last_bfqq_created == bfqq)
@@ -693,7 +678,6 @@ void bfq_bfqq_move(struct bfq_data *bfqd, struct bfq_queue *bfqq,
 	entity->sched_data = &bfqg->sched_data;
 	/* pin down bfqg and its associated blkg  */
 	bfqg_and_blkg_get(bfqg);
-	hlist_add_head(&bfqq->children_node, &bfqg->children);
 
 	if (bfq_bfqq_busy(bfqq)) {
 		if (unlikely(!bfqd->nonrot_with_queueing))
@@ -745,36 +729,9 @@ static struct bfq_group *__bfq_bic_change_cgroup(struct bfq_data *bfqd,
 	}
 
 	if (sync_bfqq) {
-		struct bfq_queue *orig_bfqq = sync_bfqq;
-
-		/* Traverse the merge chain to bfqq we will be using */
-		while (sync_bfqq->new_bfqq)
-			sync_bfqq = sync_bfqq->new_bfqq;
-		/*
-		 * Target bfqq got moved to a different cgroup or this process
-		 * started submitting bios for different cgroup?
-		 */
-		if (sync_bfqq->entity.sched_data != &bfqg->sched_data) {
-			/*
-			 * Was the queue we use merged to a different queue?
-			 * Detach process from the queue as the merge is not
-			 * valid anymore. We cannot easily just cancel the
-			 * merge (by clearing new_bfqq) as there may be other
-			 * processes using this queue and holding refs to all
-			 * queues below sync_bfqq->new_bfqq. Similarly if the
-			 * merge already happened, we need to detach from bfqq
-			 * now so that we cannot merge bio to a request from
-			 * the old cgroup.
-			 */
-			if (orig_bfqq != sync_bfqq || bfq_bfqq_coop(sync_bfqq)) {
-				bfq_put_cooperator(orig_bfqq);
-				bfq_release_process_ref(bfqd, orig_bfqq);
-				bic_set_bfqq(bic, NULL, 1);
-				return bfqg;
-			}
-			/* We are the only user of this bfqq, just move it */
+		entity = &sync_bfqq->entity;
+		if (entity->sched_data != &bfqg->sched_data)
 			bfq_bfqq_move(bfqd, sync_bfqq, bfqg);
-		}
 	}
 
 	return bfqg;
@@ -853,13 +810,68 @@ out:
 	rcu_read_unlock();
 }
 
-static void bfq_reparent_children(struct bfq_data *bfqd, struct bfq_group *bfqg)
+/**
+ * bfq_flush_idle_tree - deactivate any entity on the idle tree of @st.
+ * @st: the service tree being flushed.
+ */
+static void bfq_flush_idle_tree(struct bfq_service_tree *st)
+{
+	struct bfq_entity *entity = st->first_idle;
+
+	for (; entity ; entity = st->first_idle)
+		__bfq_deactivate_entity(entity, false);
+}
+
+/**
+ * bfq_reparent_leaf_entity - move leaf entity to the root_group.
+ * @bfqd: the device data structure with the root group.
+ * @entity: the entity to move, if entity is a leaf; or the parent entity
+ *	    of an active leaf entity to move, if entity is not a leaf.
+ */
+static void bfq_reparent_leaf_entity(struct bfq_data *bfqd,
+				     struct bfq_entity *entity,
+				     int ioprio_class)
 {
 	struct bfq_queue *bfqq;
-	struct hlist_node *next;
+	struct bfq_entity *child_entity = entity;
 
-	hlist_for_each_entry_safe(bfqq, next, &bfqg->children, children_node)
-		bfq_bfqq_move(bfqd, bfqq, bfqd->root_group);
+	while (child_entity->my_sched_data) { /* leaf not reached yet */
+		struct bfq_sched_data *child_sd = child_entity->my_sched_data;
+		struct bfq_service_tree *child_st = child_sd->service_tree +
+			ioprio_class;
+		struct rb_root *child_active = &child_st->active;
+
+		child_entity = bfq_entity_of(rb_first(child_active));
+
+		if (!child_entity)
+			child_entity = child_sd->in_service_entity;
+	}
+
+	bfqq = bfq_entity_to_bfqq(child_entity);
+	bfq_bfqq_move(bfqd, bfqq, bfqd->root_group);
+}
+
+/**
+ * bfq_reparent_active_queues - move to the root group all active queues.
+ * @bfqd: the device data structure with the root group.
+ * @bfqg: the group to move from.
+ * @st: the service tree to start the search from.
+ */
+static void bfq_reparent_active_queues(struct bfq_data *bfqd,
+				       struct bfq_group *bfqg,
+				       struct bfq_service_tree *st,
+				       int ioprio_class)
+{
+	struct rb_root *active = &st->active;
+	struct bfq_entity *entity;
+
+	while ((entity = bfq_entity_of(rb_first(active))))
+		bfq_reparent_leaf_entity(bfqd, entity, ioprio_class);
+
+	if (bfqg->sched_data.in_service_entity)
+		bfq_reparent_leaf_entity(bfqd,
+					 bfqg->sched_data.in_service_entity,
+					 ioprio_class);
 }
 
 /**
@@ -885,17 +897,38 @@ static void bfq_pd_offline(struct blkg_policy_data *pd)
 		goto put_async_queues;
 
 	/*
-	 * Reparent all bfqqs under this bfq group. This will also empty all
-	 * service_trees belonging to this group before deactivating the group
-	 * itself.
+	 * Empty all service_trees belonging to this group before
+	 * deactivating the group itself.
 	 */
-	bfq_reparent_children(bfqd, bfqg);
-
 	for (i = 0; i < BFQ_IOPRIO_CLASSES; i++) {
 		st = bfqg->sched_data.service_tree + i;
 
-		WARN_ON_ONCE(!RB_EMPTY_ROOT(&st->active));
-		WARN_ON_ONCE(!RB_EMPTY_ROOT(&st->idle));
+		/*
+		 * It may happen that some queues are still active
+		 * (busy) upon group destruction (if the corresponding
+		 * processes have been forced to terminate). We move
+		 * all the leaf entities corresponding to these queues
+		 * to the root_group.
+		 * Also, it may happen that the group has an entity
+		 * in service, which is disconnected from the active
+		 * tree: it must be moved, too.
+		 * There is no need to put the sync queues, as the
+		 * scheduler has taken no reference.
+		 */
+		bfq_reparent_active_queues(bfqd, bfqg, st, i);
+
+		/*
+		 * The idle tree may still contain bfq_queues
+		 * belonging to exited task because they never
+		 * migrated to a different cgroup from the one being
+		 * destroyed now. In addition, even
+		 * bfq_reparent_active_queues() may happen to add some
+		 * entities to the idle tree. It happens if, in some
+		 * of the calls to bfq_bfqq_move() performed by
+		 * bfq_reparent_active_queues(), the queue to move is
+		 * empty and gets expired.
+		 */
+		bfq_flush_idle_tree(st);
 	}
 
 	__bfq_deactivate_entity(entity, false);
@@ -1408,10 +1441,14 @@ void bfqg_and_blkg_put(struct bfq_group *bfqg) {}
 struct bfq_group *bfq_create_group_hierarchy(struct bfq_data *bfqd, int node)
 {
 	struct bfq_group *bfqg;
+	int i;
 
 	bfqg = kmalloc_node(sizeof(*bfqg), GFP_KERNEL | __GFP_ZERO, node);
 	if (!bfqg)
 		return NULL;
+
+	for (i = 0; i < BFQ_IOPRIO_CLASSES; i++)
+		bfqg->sched_data.service_tree[i] = BFQ_SERVICE_TREE_INIT;
 
 	return bfqg;
 }
