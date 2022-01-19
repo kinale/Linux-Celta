@@ -36,20 +36,20 @@
 
 void tcp_set_tx_in_flight(struct sock *sk, struct sk_buff *skb)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
-	u32 in_flight;
+    struct tcp_sock *tp = tcp_sk(sk);
+    u32 in_flight;
 
-	/* Check, sanitize, and record packets in flight after skb was sent. */
-	in_flight = tcp_packets_in_flight(tp) + tcp_skb_pcount(skb);
-	if (WARN_ONCE(in_flight > TCPCB_IN_FLIGHT_MAX,
-		      "insane in_flight %u cc %s mss %u "
-		      "cwnd %u pif %u %u %u %u\n",
-		      in_flight, inet_csk(sk)->icsk_ca_ops->name,
-		      tp->mss_cache, tp->snd_cwnd,
-		      tp->packets_out, tp->retrans_out,
-		      tp->sacked_out, tp->lost_out))
-		in_flight = TCPCB_IN_FLIGHT_MAX;
-	TCP_SKB_CB(skb)->tx.in_flight = in_flight;
+    /* Check, sanitize, and record packets in flight after skb was sent. */
+    in_flight = tcp_packets_in_flight(tp) + tcp_skb_pcount(skb);
+    if (WARN_ONCE(in_flight > TCPCB_IN_FLIGHT_MAX,
+                  "insane in_flight %u cc %s mss %u "
+                  "cwnd %u pif %u %u %u %u\n",
+                  in_flight, inet_csk(sk)->icsk_ca_ops->name,
+                  tp->mss_cache, tp->snd_cwnd,
+                  tp->packets_out, tp->retrans_out,
+                  tp->sacked_out, tp->lost_out))
+        in_flight = TCPCB_IN_FLIGHT_MAX;
+    TCP_SKB_CB(skb)->tx.in_flight = in_flight;
 }
 
 /* Snapshot the current delivery information in the skb, to generate
@@ -57,36 +57,36 @@ void tcp_set_tx_in_flight(struct sock *sk, struct sk_buff *skb)
  */
 void tcp_rate_skb_sent(struct sock *sk, struct sk_buff *skb)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
+    struct tcp_sock *tp = tcp_sk(sk);
 
-	 /* In general we need to start delivery rate samples from the
-	  * time we received the most recent ACK, to ensure we include
-	  * the full time the network needs to deliver all in-flight
-	  * packets. If there are no packets in flight yet, then we
-	  * know that any ACKs after now indicate that the network was
-	  * able to deliver those packets completely in the sampling
-	  * interval between now and the next ACK.
-	  *
-	  * Note that we use packets_out instead of tcp_packets_in_flight(tp)
-	  * because the latter is a guess based on RTO and loss-marking
-	  * heuristics. We don't want spurious RTOs or loss markings to cause
-	  * a spuriously small time interval, causing a spuriously high
-	  * bandwidth estimate.
-	  */
-	if (!tp->packets_out) {
-		u64 tstamp_us = tcp_skb_timestamp_us(skb);
+    /* In general we need to start delivery rate samples from the
+     * time we received the most recent ACK, to ensure we include
+     * the full time the network needs to deliver all in-flight
+     * packets. If there are no packets in flight yet, then we
+     * know that any ACKs after now indicate that the network was
+     * able to deliver those packets completely in the sampling
+     * interval between now and the next ACK.
+     *
+     * Note that we use packets_out instead of tcp_packets_in_flight(tp)
+     * because the latter is a guess based on RTO and loss-marking
+     * heuristics. We don't want spurious RTOs or loss markings to cause
+     * a spuriously small time interval, causing a spuriously high
+     * bandwidth estimate.
+     */
+    if (!tp->packets_out) {
+        u64 tstamp_us = tcp_skb_timestamp_us(skb);
 
-		tp->first_tx_mstamp  = tstamp_us;
-		tp->delivered_mstamp = tstamp_us;
-	}
+        tp->first_tx_mstamp  = tstamp_us;
+        tp->delivered_mstamp = tstamp_us;
+    }
 
-	TCP_SKB_CB(skb)->tx.first_tx_mstamp	= tp->first_tx_mstamp;
-	TCP_SKB_CB(skb)->tx.delivered_mstamp	= tp->delivered_mstamp;
-	TCP_SKB_CB(skb)->tx.delivered		= tp->delivered;
-	TCP_SKB_CB(skb)->tx.delivered_ce	= tp->delivered_ce;
-	TCP_SKB_CB(skb)->tx.lost		= tp->lost;
-	TCP_SKB_CB(skb)->tx.is_app_limited	= tp->app_limited ? 1 : 0;
-	tcp_set_tx_in_flight(sk, skb);
+    TCP_SKB_CB(skb)->tx.first_tx_mstamp	= tp->first_tx_mstamp;
+    TCP_SKB_CB(skb)->tx.delivered_mstamp	= tp->delivered_mstamp;
+    TCP_SKB_CB(skb)->tx.delivered		= tp->delivered;
+    TCP_SKB_CB(skb)->tx.delivered_ce	= tp->delivered_ce;
+    TCP_SKB_CB(skb)->tx.lost		= tp->lost;
+    TCP_SKB_CB(skb)->tx.is_app_limited	= tp->app_limited ? 1 : 0;
+    tcp_set_tx_in_flight(sk, skb);
 }
 
 /* When an skb is sacked or acked, we fill in the rate sample with the (prior)
@@ -97,132 +97,132 @@ void tcp_rate_skb_sent(struct sock *sk, struct sk_buff *skb)
  * sent skb, i.e., the skb with the highest prior_delivered count.
  */
 void tcp_rate_skb_delivered(struct sock *sk, struct sk_buff *skb,
-			    struct rate_sample *rs)
+                            struct rate_sample *rs)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
-	struct tcp_skb_cb *scb = TCP_SKB_CB(skb);
+    struct tcp_sock *tp = tcp_sk(sk);
+    struct tcp_skb_cb *scb = TCP_SKB_CB(skb);
 
-	if (!scb->tx.delivered_mstamp)
-		return;
+    if (!scb->tx.delivered_mstamp)
+        return;
 
-	if (!rs->prior_delivered ||
-	    after(scb->tx.delivered, rs->prior_delivered)) {
-		rs->prior_lost	     = scb->tx.lost;
-		rs->prior_delivered_ce  = scb->tx.delivered_ce;
-		rs->prior_delivered  = scb->tx.delivered;
-		rs->prior_mstamp     = scb->tx.delivered_mstamp;
-		rs->is_app_limited   = scb->tx.is_app_limited;
-		rs->is_retrans	     = scb->sacked & TCPCB_RETRANS;
-		rs->tx_in_flight     = scb->tx.in_flight;
+    if (!rs->prior_delivered ||
+            after(scb->tx.delivered, rs->prior_delivered)) {
+        rs->prior_lost	     = scb->tx.lost;
+        rs->prior_delivered_ce  = scb->tx.delivered_ce;
+        rs->prior_delivered  = scb->tx.delivered;
+        rs->prior_mstamp     = scb->tx.delivered_mstamp;
+        rs->is_app_limited   = scb->tx.is_app_limited;
+        rs->is_retrans	     = scb->sacked & TCPCB_RETRANS;
+        rs->tx_in_flight     = scb->tx.in_flight;
 
-		/* Record send time of most recently ACKed packet: */
-		tp->first_tx_mstamp  = tcp_skb_timestamp_us(skb);
-		/* Find the duration of the "send phase" of this window: */
-		rs->interval_us      = tcp_stamp32_us_delta(
-						tp->first_tx_mstamp,
-						scb->tx.first_tx_mstamp);
+        /* Record send time of most recently ACKed packet: */
+        tp->first_tx_mstamp  = tcp_skb_timestamp_us(skb);
+        /* Find the duration of the "send phase" of this window: */
+        rs->interval_us      = tcp_stamp32_us_delta(
+                                   tp->first_tx_mstamp,
+                                   scb->tx.first_tx_mstamp);
 
-	}
-	/* Mark off the skb delivered once it's sacked to avoid being
-	 * used again when it's cumulatively acked. For acked packets
-	 * we don't need to reset since it'll be freed soon.
-	 */
-	if (scb->sacked & TCPCB_SACKED_ACKED)
-		scb->tx.delivered_mstamp = 0;
+    }
+    /* Mark off the skb delivered once it's sacked to avoid being
+     * used again when it's cumulatively acked. For acked packets
+     * we don't need to reset since it'll be freed soon.
+     */
+    if (scb->sacked & TCPCB_SACKED_ACKED)
+        scb->tx.delivered_mstamp = 0;
 }
 
 /* Update the connection delivery information and generate a rate sample. */
 void tcp_rate_gen(struct sock *sk, u32 delivered, u32 lost,
-		  bool is_sack_reneg, struct rate_sample *rs)
+                  bool is_sack_reneg, struct rate_sample *rs)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
-	u32 snd_us, ack_us;
+    struct tcp_sock *tp = tcp_sk(sk);
+    u32 snd_us, ack_us;
 
-	/* Clear app limited if bubble is acked and gone. */
-	if (tp->app_limited && after(tp->delivered, tp->app_limited))
-		tp->app_limited = 0;
+    /* Clear app limited if bubble is acked and gone. */
+    if (tp->app_limited && after(tp->delivered, tp->app_limited))
+        tp->app_limited = 0;
 
-	/* TODO: there are multiple places throughout tcp_ack() to get
-	 * current time. Refactor the code using a new "tcp_acktag_state"
-	 * to carry current time, flags, stats like "tcp_sacktag_state".
-	 */
-	if (delivered)
-		tp->delivered_mstamp = tp->tcp_mstamp;
+    /* TODO: there are multiple places throughout tcp_ack() to get
+     * current time. Refactor the code using a new "tcp_acktag_state"
+     * to carry current time, flags, stats like "tcp_sacktag_state".
+     */
+    if (delivered)
+        tp->delivered_mstamp = tp->tcp_mstamp;
 
-	rs->acked_sacked = delivered;	/* freshly ACKed or SACKed */
-	rs->losses = lost;		/* freshly marked lost */
-	/* Return an invalid sample if no timing information is available or
-	 * in recovery from loss with SACK reneging. Rate samples taken during
-	 * a SACK reneging event may overestimate bw by including packets that
-	 * were SACKed before the reneg.
-	 */
-	if (!rs->prior_mstamp || is_sack_reneg) {
-		rs->delivered = -1;
-		rs->interval_us = -1;
-		return;
-	}
-	rs->delivered   = tp->delivered - rs->prior_delivered;
-	rs->lost        = tp->lost - rs->prior_lost;
+    rs->acked_sacked = delivered;	/* freshly ACKed or SACKed */
+    rs->losses = lost;		/* freshly marked lost */
+    /* Return an invalid sample if no timing information is available or
+     * in recovery from loss with SACK reneging. Rate samples taken during
+     * a SACK reneging event may overestimate bw by including packets that
+     * were SACKed before the reneg.
+     */
+    if (!rs->prior_mstamp || is_sack_reneg) {
+        rs->delivered = -1;
+        rs->interval_us = -1;
+        return;
+    }
+    rs->delivered   = tp->delivered - rs->prior_delivered;
+    rs->lost        = tp->lost - rs->prior_lost;
 
-	rs->delivered_ce = tp->delivered_ce - rs->prior_delivered_ce;
-	/* delivered_ce occupies less than 32 bits in the skb control block */
-	rs->delivered_ce &= TCPCB_DELIVERED_CE_MASK;
+    rs->delivered_ce = tp->delivered_ce - rs->prior_delivered_ce;
+    /* delivered_ce occupies less than 32 bits in the skb control block */
+    rs->delivered_ce &= TCPCB_DELIVERED_CE_MASK;
 
-	/* Model sending data and receiving ACKs as separate pipeline phases
-	 * for a window. Usually the ACK phase is longer, but with ACK
-	 * compression the send phase can be longer. To be safe we use the
-	 * longer phase.
-	 */
-	snd_us = rs->interval_us;				/* send phase */
-	ack_us = tcp_stamp32_us_delta(tp->tcp_mstamp,
-				    rs->prior_mstamp); /* ack phase */
-	rs->interval_us = max(snd_us, ack_us);
+    /* Model sending data and receiving ACKs as separate pipeline phases
+     * for a window. Usually the ACK phase is longer, but with ACK
+     * compression the send phase can be longer. To be safe we use the
+     * longer phase.
+     */
+    snd_us = rs->interval_us;				/* send phase */
+    ack_us = tcp_stamp32_us_delta(tp->tcp_mstamp,
+                                  rs->prior_mstamp); /* ack phase */
+    rs->interval_us = max(snd_us, ack_us);
 
-	/* Record both segment send and ack receive intervals */
-	rs->snd_interval_us = snd_us;
-	rs->rcv_interval_us = ack_us;
+    /* Record both segment send and ack receive intervals */
+    rs->snd_interval_us = snd_us;
+    rs->rcv_interval_us = ack_us;
 
-	/* Normally we expect interval_us >= min-rtt.
-	 * Note that rate may still be over-estimated when a spuriously
-	 * retransmistted skb was first (s)acked because "interval_us"
-	 * is under-estimated (up to an RTT). However continuously
-	 * measuring the delivery rate during loss recovery is crucial
-	 * for connections suffer heavy or prolonged losses.
-	 */
-	if (unlikely(rs->interval_us < tcp_min_rtt(tp))) {
-		if (!rs->is_retrans)
-			pr_debug("tcp rate: %ld %d %u %u %u\n",
-				 rs->interval_us, rs->delivered,
-				 inet_csk(sk)->icsk_ca_state,
-				 tp->rx_opt.sack_ok, tcp_min_rtt(tp));
-		rs->interval_us = -1;
-		return;
-	}
+    /* Normally we expect interval_us >= min-rtt.
+     * Note that rate may still be over-estimated when a spuriously
+     * retransmistted skb was first (s)acked because "interval_us"
+     * is under-estimated (up to an RTT). However continuously
+     * measuring the delivery rate during loss recovery is crucial
+     * for connections suffer heavy or prolonged losses.
+     */
+    if (unlikely(rs->interval_us < tcp_min_rtt(tp))) {
+        if (!rs->is_retrans)
+            pr_debug("tcp rate: %ld %d %u %u %u\n",
+                     rs->interval_us, rs->delivered,
+                     inet_csk(sk)->icsk_ca_state,
+                     tp->rx_opt.sack_ok, tcp_min_rtt(tp));
+        rs->interval_us = -1;
+        return;
+    }
 
-	/* Record the last non-app-limited or the highest app-limited bw */
-	if (!rs->is_app_limited ||
-	    ((u64)rs->delivered * tp->rate_interval_us >=
-	     (u64)tp->rate_delivered * rs->interval_us)) {
-		tp->rate_delivered = rs->delivered;
-		tp->rate_interval_us = rs->interval_us;
-		tp->rate_app_limited = rs->is_app_limited;
-	}
+    /* Record the last non-app-limited or the highest app-limited bw */
+    if (!rs->is_app_limited ||
+            ((u64)rs->delivered * tp->rate_interval_us >=
+             (u64)tp->rate_delivered * rs->interval_us)) {
+        tp->rate_delivered = rs->delivered;
+        tp->rate_interval_us = rs->interval_us;
+        tp->rate_app_limited = rs->is_app_limited;
+    }
 }
 
 /* If a gap is detected between sends, mark the socket application-limited. */
 void tcp_rate_check_app_limited(struct sock *sk)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
+    struct tcp_sock *tp = tcp_sk(sk);
 
-	if (/* We have less than one packet to send. */
-	    tp->write_seq - tp->snd_nxt < tp->mss_cache &&
-	    /* Nothing in sending host's qdisc queues or NIC tx queue. */
-	    sk_wmem_alloc_get(sk) < SKB_TRUESIZE(1) &&
-	    /* We are not limited by CWND. */
-	    tcp_packets_in_flight(tp) < tp->snd_cwnd &&
-	    /* All lost packets have been retransmitted. */
-	    tp->lost_out <= tp->retrans_out)
-		tp->app_limited =
-			(tp->delivered + tcp_packets_in_flight(tp)) ? : 1;
+    if (/* We have less than one packet to send. */
+        tp->write_seq - tp->snd_nxt < tp->mss_cache &&
+        /* Nothing in sending host's qdisc queues or NIC tx queue. */
+        sk_wmem_alloc_get(sk) < SKB_TRUESIZE(1) &&
+        /* We are not limited by CWND. */
+        tcp_packets_in_flight(tp) < tp->snd_cwnd &&
+        /* All lost packets have been retransmitted. */
+        tp->lost_out <= tp->retrans_out)
+        tp->app_limited =
+            (tp->delivered + tcp_packets_in_flight(tp)) ? : 1;
 }
 EXPORT_SYMBOL_GPL(tcp_rate_check_app_limited);
