@@ -54,167 +54,159 @@
 
 static DEFINE_PER_CPU(u8, saved_epb);
 
-#define EPB_MASK	0x0fULL
-#define EPB_SAVED	0x10ULL
-#define MAX_EPB		EPB_MASK
+#define EPB_MASK 0x0fULL
+#define EPB_SAVED 0x10ULL
+#define MAX_EPB EPB_MASK
 
 static int intel_epb_save(void)
 {
-    u64 epb;
+	u64 epb;
 
-    rdmsrl(MSR_IA32_ENERGY_PERF_BIAS, epb);
-    /*
+	rdmsrl(MSR_IA32_ENERGY_PERF_BIAS, epb);
+	/*
      * Ensure that saved_epb will always be nonzero after this write even if
      * the EPB value read from the MSR is 0.
      */
-    this_cpu_write(saved_epb, (epb & EPB_MASK) | EPB_SAVED);
+	this_cpu_write(saved_epb, (epb & EPB_MASK) | EPB_SAVED);
 
-    return 0;
+	return 0;
 }
 
 static void intel_epb_restore(void)
 {
-    u64 val = this_cpu_read(saved_epb);
-    u64 epb;
+	u64 val = this_cpu_read(saved_epb);
+	u64 epb;
 
-    rdmsrl(MSR_IA32_ENERGY_PERF_BIAS, epb);
-    if (val) {
-        val &= EPB_MASK;
-    } else {
-        /*
+	rdmsrl(MSR_IA32_ENERGY_PERF_BIAS, epb);
+	if (val) {
+		val &= EPB_MASK;
+	} else {
+		/*
          * Because intel_epb_save() has not run for the current CPU yet,
          * it is going online for the first time, so if its EPB value is
          * 0 ('performance') at this point, assume that it has not been
          * initialized by the platform firmware and set it to 6
          * ('normal').
          */
-        val = epb & EPB_MASK;
-        if (val == ENERGY_PERF_BIAS_PERFORMANCE) {
-            val = ENERGY_PERF_BIAS_NORMAL;
-            pr_warn_once("ENERGY_PERF_BIAS: Set to 'normal', was 'performance'\n");
-        }
-    }
-    wrmsrl(MSR_IA32_ENERGY_PERF_BIAS, (epb & ~EPB_MASK) | val);
+		val = epb & EPB_MASK;
+		if (val == ENERGY_PERF_BIAS_PERFORMANCE) {
+			val = ENERGY_PERF_BIAS_NORMAL;
+			pr_warn_once(
+				"ENERGY_PERF_BIAS: Set to 'normal', was 'performance'\n");
+		}
+	}
+	wrmsrl(MSR_IA32_ENERGY_PERF_BIAS, (epb & ~EPB_MASK) | val);
 }
 
 static struct syscore_ops intel_epb_syscore_ops = {
-    .suspend = intel_epb_save,
-    .resume = intel_epb_restore,
+	.suspend = intel_epb_save,
+	.resume = intel_epb_restore,
 };
 
-static const char * const energy_perf_strings[] = {
-    "performance",
-    "balance-performance",
-    "normal",
-    "balance-power",
-    "power"
+static const char *const energy_perf_strings[] = {
+	"performance", "balance-performance", "normal", "balance-power", "power"
 };
-static const u8 energ_perf_values[] = {
-    ENERGY_PERF_BIAS_PERFORMANCE,
-    ENERGY_PERF_BIAS_BALANCE_PERFORMANCE,
-    ENERGY_PERF_BIAS_NORMAL,
-    ENERGY_PERF_BIAS_BALANCE_POWERSAVE,
-    ENERGY_PERF_BIAS_POWERSAVE
-};
+static const u8 energ_perf_values[] = { ENERGY_PERF_BIAS_PERFORMANCE,
+					ENERGY_PERF_BIAS_BALANCE_PERFORMANCE,
+					ENERGY_PERF_BIAS_NORMAL,
+					ENERGY_PERF_BIAS_BALANCE_POWERSAVE,
+					ENERGY_PERF_BIAS_POWERSAVE };
 
 static ssize_t energy_perf_bias_show(struct device *dev,
-                                     struct device_attribute *attr,
-                                     char *buf)
+				     struct device_attribute *attr, char *buf)
 {
-    unsigned int cpu = dev->id;
-    u64 epb;
-    int ret;
+	unsigned int cpu = dev->id;
+	u64 epb;
+	int ret;
 
-    ret = rdmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS, &epb);
-    if (ret < 0)
-        return ret;
+	ret = rdmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS, &epb);
+	if (ret < 0)
+		return ret;
 
-    return sprintf(buf, "%llu\n", epb);
+	return sprintf(buf, "%llu\n", epb);
 }
 
 static ssize_t energy_perf_bias_store(struct device *dev,
-                                      struct device_attribute *attr,
-                                      const char *buf, size_t count)
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
 {
-    unsigned int cpu = dev->id;
-    u64 epb, val;
-    int ret;
+	unsigned int cpu = dev->id;
+	u64 epb, val;
+	int ret;
 
-    ret = __sysfs_match_string(energy_perf_strings,
-                               ARRAY_SIZE(energy_perf_strings), buf);
-    if (ret >= 0)
-        val = energ_perf_values[ret];
-    else if (kstrtou64(buf, 0, &val) || val > MAX_EPB)
-        return -EINVAL;
+	ret = __sysfs_match_string(energy_perf_strings,
+				   ARRAY_SIZE(energy_perf_strings), buf);
+	if (ret >= 0)
+		val = energ_perf_values[ret];
+	else if (kstrtou64(buf, 0, &val) || val > MAX_EPB)
+		return -EINVAL;
 
-    ret = rdmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS, &epb);
-    if (ret < 0)
-        return ret;
+	ret = rdmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS, &epb);
+	if (ret < 0)
+		return ret;
 
-    ret = wrmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS,
-                        (epb & ~EPB_MASK) | val);
-    if (ret < 0)
-        return ret;
+	ret = wrmsrl_on_cpu(cpu, MSR_IA32_ENERGY_PERF_BIAS,
+			    (epb & ~EPB_MASK) | val);
+	if (ret < 0)
+		return ret;
 
-    /* update the ITMT scheduler logic to use the power policy data */
-    /* scale the val up by 2 so the range is 224 - 256 */
-    sched_set_itmt_power_ratio(256 - val * 2, cpu);
+	/* update the ITMT scheduler logic to use the power policy data */
+	/* scale the val up by 2 so the range is 224 - 256 */
+	sched_set_itmt_power_ratio(256 - val * 2, cpu);
 
-    return count;
+	return count;
 }
 
 static DEVICE_ATTR_RW(energy_perf_bias);
 
-static struct attribute *intel_epb_attrs[] = {
-    &dev_attr_energy_perf_bias.attr,
-    NULL
-};
+static struct attribute *intel_epb_attrs[] = { &dev_attr_energy_perf_bias.attr,
+					       NULL };
 
 static const struct attribute_group intel_epb_attr_group = {
-    .name = power_group_name,
-    .attrs =  intel_epb_attrs
+	.name = power_group_name,
+	.attrs = intel_epb_attrs
 };
 
 static int intel_epb_online(unsigned int cpu)
 {
-    struct device *cpu_dev = get_cpu_device(cpu);
+	struct device *cpu_dev = get_cpu_device(cpu);
 
-    intel_epb_restore();
-    if (!cpuhp_tasks_frozen)
-        sysfs_merge_group(&cpu_dev->kobj, &intel_epb_attr_group);
+	intel_epb_restore();
+	if (!cpuhp_tasks_frozen)
+		sysfs_merge_group(&cpu_dev->kobj, &intel_epb_attr_group);
 
-    return 0;
+	return 0;
 }
 
 static int intel_epb_offline(unsigned int cpu)
 {
-    struct device *cpu_dev = get_cpu_device(cpu);
+	struct device *cpu_dev = get_cpu_device(cpu);
 
-    if (!cpuhp_tasks_frozen)
-        sysfs_unmerge_group(&cpu_dev->kobj, &intel_epb_attr_group);
+	if (!cpuhp_tasks_frozen)
+		sysfs_unmerge_group(&cpu_dev->kobj, &intel_epb_attr_group);
 
-    intel_epb_save();
-    return 0;
+	intel_epb_save();
+	return 0;
 }
 
 static __init int intel_epb_init(void)
 {
-    int ret;
+	int ret;
 
-    if (!boot_cpu_has(X86_FEATURE_EPB))
-        return -ENODEV;
+	if (!boot_cpu_has(X86_FEATURE_EPB))
+		return -ENODEV;
 
-    ret = cpuhp_setup_state(CPUHP_AP_X86_INTEL_EPB_ONLINE,
-                            "x86/intel/epb:online", intel_epb_online,
-                            intel_epb_offline);
-    if (ret < 0)
-        goto err_out_online;
+	ret = cpuhp_setup_state(CPUHP_AP_X86_INTEL_EPB_ONLINE,
+				"x86/intel/epb:online", intel_epb_online,
+				intel_epb_offline);
+	if (ret < 0)
+		goto err_out_online;
 
-    register_syscore_ops(&intel_epb_syscore_ops);
-    return 0;
+	register_syscore_ops(&intel_epb_syscore_ops);
+	return 0;
 
 err_out_online:
-    cpuhp_remove_state(CPUHP_AP_X86_INTEL_EPB_ONLINE);
-    return ret;
+	cpuhp_remove_state(CPUHP_AP_X86_INTEL_EPB_ONLINE);
+	return ret;
 }
 subsys_initcall(intel_epb_init);

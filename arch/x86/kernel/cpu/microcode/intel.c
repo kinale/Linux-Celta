@@ -48,17 +48,17 @@ static struct microcode_intel *intel_ucode_patch;
 static int llc_size_per_core;
 
 static inline bool cpu_signatures_match(unsigned int s1, unsigned int p1,
-                                        unsigned int s2, unsigned int p2)
+					unsigned int s2, unsigned int p2)
 {
-    if (s1 != s2)
-        return false;
+	if (s1 != s2)
+		return false;
 
-    /* Processor flags are either both 0 ... */
-    if (!p1 && !p2)
-        return true;
+	/* Processor flags are either both 0 ... */
+	if (!p1 && !p2)
+		return true;
 
-    /* ... or they intersect. */
-    return p1 & p2;
+	/* ... or they intersect. */
+	return p1 & p2;
 }
 
 /*
@@ -66,225 +66,229 @@ static inline bool cpu_signatures_match(unsigned int s1, unsigned int p1,
  */
 static int find_matching_signature(void *mc, unsigned int csig, int cpf)
 {
-    struct microcode_header_intel *mc_hdr = mc;
-    struct extended_sigtable *ext_hdr;
-    struct extended_signature *ext_sig;
-    int i;
+	struct microcode_header_intel *mc_hdr = mc;
+	struct extended_sigtable *ext_hdr;
+	struct extended_signature *ext_sig;
+	int i;
 
-    if (cpu_signatures_match(csig, cpf, mc_hdr->sig, mc_hdr->pf))
-        return 1;
+	if (cpu_signatures_match(csig, cpf, mc_hdr->sig, mc_hdr->pf))
+		return 1;
 
-    /* Look for ext. headers: */
-    if (get_totalsize(mc_hdr) <= get_datasize(mc_hdr) + MC_HEADER_SIZE)
-        return 0;
+	/* Look for ext. headers: */
+	if (get_totalsize(mc_hdr) <= get_datasize(mc_hdr) + MC_HEADER_SIZE)
+		return 0;
 
-    ext_hdr = mc + get_datasize(mc_hdr) + MC_HEADER_SIZE;
-    ext_sig = (void *)ext_hdr + EXT_HEADER_SIZE;
+	ext_hdr = mc + get_datasize(mc_hdr) + MC_HEADER_SIZE;
+	ext_sig = (void *)ext_hdr + EXT_HEADER_SIZE;
 
-    for (i = 0; i < ext_hdr->count; i++) {
-        if (cpu_signatures_match(csig, cpf, ext_sig->sig, ext_sig->pf))
-            return 1;
-        ext_sig++;
-    }
-    return 0;
+	for (i = 0; i < ext_hdr->count; i++) {
+		if (cpu_signatures_match(csig, cpf, ext_sig->sig, ext_sig->pf))
+			return 1;
+		ext_sig++;
+	}
+	return 0;
 }
 
 /*
  * Returns 1 if update has been found, 0 otherwise.
  */
-static int has_newer_microcode(void *mc, unsigned int csig, int cpf, int new_rev)
+static int has_newer_microcode(void *mc, unsigned int csig, int cpf,
+			       int new_rev)
 {
-    struct microcode_header_intel *mc_hdr = mc;
+	struct microcode_header_intel *mc_hdr = mc;
 
-    //if (mc_hdr->rev <= new_rev)
-    if (mc_hdr->rev < new_rev) {
-        printk ("Returning NO_NEW old = 0x%x new = 0x%x\n",
-                mc_hdr->rev, new_rev);
-        return 0;
-    }
-    if ((mc_hdr->rev == new_rev) && !force_ucode_load) {
-        printk ("SAME REV: no_force Returning NO_NEW old = 0x%x new = 0x%x\n",
-                mc_hdr->rev, new_rev);
-        return 0;
-    }
-    printk ("ucode: force loading same rev\n");
+	//if (mc_hdr->rev <= new_rev)
+	if (mc_hdr->rev < new_rev) {
+		printk("Returning NO_NEW old = 0x%x new = 0x%x\n", mc_hdr->rev,
+		       new_rev);
+		return 0;
+	}
+	if ((mc_hdr->rev == new_rev) && !force_ucode_load) {
+		printk("SAME REV: no_force Returning NO_NEW old = 0x%x new = 0x%x\n",
+		       mc_hdr->rev, new_rev);
+		return 0;
+	}
+	printk("ucode: force loading same rev\n");
 
-    return find_matching_signature(mc, csig, cpf);
+	return find_matching_signature(mc, csig, cpf);
 }
 
 static struct ucode_patch *memdup_patch(void *data, unsigned int size)
 {
-    struct ucode_patch *p;
+	struct ucode_patch *p;
 
-    p = kzalloc(sizeof(struct ucode_patch), GFP_KERNEL);
-    if (!p)
-        return NULL;
+	p = kzalloc(sizeof(struct ucode_patch), GFP_KERNEL);
+	if (!p)
+		return NULL;
 
-    p->data = kmemdup(data, size, GFP_KERNEL);
-    if (!p->data) {
-        kfree(p);
-        return NULL;
-    }
+	p->data = kmemdup(data, size, GFP_KERNEL);
+	if (!p->data) {
+		kfree(p);
+		return NULL;
+	}
 
-    return p;
+	return p;
 }
 
-static void save_microcode_patch(struct ucode_cpu_info *uci, void *data, unsigned int size)
+static void save_microcode_patch(struct ucode_cpu_info *uci, void *data,
+				 unsigned int size)
 {
-    struct microcode_header_intel *mc_hdr, *mc_saved_hdr;
-    struct ucode_patch *iter, *tmp, *p = NULL;
-    bool prev_found = false;
-    unsigned int sig, pf;
+	struct microcode_header_intel *mc_hdr, *mc_saved_hdr;
+	struct ucode_patch *iter, *tmp, *p = NULL;
+	bool prev_found = false;
+	unsigned int sig, pf;
 
-    mc_hdr = (struct microcode_header_intel *)data;
+	mc_hdr = (struct microcode_header_intel *)data;
 
-    list_for_each_entry_safe(iter, tmp, &microcode_cache, plist) {
-        mc_saved_hdr = (struct microcode_header_intel *)iter->data;
-        sig	     = mc_saved_hdr->sig;
-        pf	     = mc_saved_hdr->pf;
+	list_for_each_entry_safe (iter, tmp, &microcode_cache, plist) {
+		mc_saved_hdr = (struct microcode_header_intel *)iter->data;
+		sig = mc_saved_hdr->sig;
+		pf = mc_saved_hdr->pf;
 
-        if (find_matching_signature(data, sig, pf)) {
-            prev_found = true;
+		if (find_matching_signature(data, sig, pf)) {
+			prev_found = true;
 
-            if (mc_hdr->rev <= mc_saved_hdr->rev)
-                continue;
+			if (mc_hdr->rev <= mc_saved_hdr->rev)
+				continue;
 
-            p = memdup_patch(data, size);
-            if (!p)
-                pr_err("Error allocating buffer %p\n", data);
-            else {
-                list_replace(&iter->plist, &p->plist);
-                kfree(iter->data);
-                kfree(iter);
-            }
-        }
-    }
+			p = memdup_patch(data, size);
+			if (!p)
+				pr_err("Error allocating buffer %p\n", data);
+			else {
+				list_replace(&iter->plist, &p->plist);
+				kfree(iter->data);
+				kfree(iter);
+			}
+		}
+	}
 
-    /*
+	/*
      * There weren't any previous patches found in the list cache; save the
      * newly found.
      */
-    if (!prev_found) {
-        p = memdup_patch(data, size);
-        if (!p)
-            pr_err("Error allocating buffer for %p\n", data);
-        else
-            list_add_tail(&p->plist, &microcode_cache);
-    }
+	if (!prev_found) {
+		p = memdup_patch(data, size);
+		if (!p)
+			pr_err("Error allocating buffer for %p\n", data);
+		else
+			list_add_tail(&p->plist, &microcode_cache);
+	}
 
-    if (!p)
-        return;
+	if (!p)
+		return;
 
-    if (!find_matching_signature(p->data, uci->cpu_sig.sig, uci->cpu_sig.pf))
-        return;
+	if (!find_matching_signature(p->data, uci->cpu_sig.sig,
+				     uci->cpu_sig.pf))
+		return;
 
-    /*
+	/*
      * Save for early loading. On 32-bit, that needs to be a physical
      * address as the APs are running from physical addresses, before
      * paging has been enabled.
      */
-    if (IS_ENABLED(CONFIG_X86_32))
-        intel_ucode_patch = (struct microcode_intel *)__pa_nodebug(p->data);
-    else
-        intel_ucode_patch = p->data;
+	if (IS_ENABLED(CONFIG_X86_32))
+		intel_ucode_patch =
+			(struct microcode_intel *)__pa_nodebug(p->data);
+	else
+		intel_ucode_patch = p->data;
 }
 
 static int microcode_sanity_check(void *mc, int print_err)
 {
-    unsigned long total_size, data_size, ext_table_size;
-    struct microcode_header_intel *mc_header = mc;
-    struct extended_sigtable *ext_header = NULL;
-    u32 sum, orig_sum, ext_sigcount = 0, i;
-    struct extended_signature *ext_sig;
+	unsigned long total_size, data_size, ext_table_size;
+	struct microcode_header_intel *mc_header = mc;
+	struct extended_sigtable *ext_header = NULL;
+	u32 sum, orig_sum, ext_sigcount = 0, i;
+	struct extended_signature *ext_sig;
 
-    total_size = get_totalsize(mc_header);
-    data_size = get_datasize(mc_header);
+	total_size = get_totalsize(mc_header);
+	data_size = get_datasize(mc_header);
 
-    if (data_size + MC_HEADER_SIZE > total_size) {
-        if (print_err)
-            pr_err("Error: bad microcode data file size.\n");
-        return -EINVAL;
-    }
+	if (data_size + MC_HEADER_SIZE > total_size) {
+		if (print_err)
+			pr_err("Error: bad microcode data file size.\n");
+		return -EINVAL;
+	}
 
-    if (mc_header->ldrver != 1 || mc_header->hdrver != 1) {
-        if (print_err)
-            pr_err("Error: invalid/unknown microcode update format.\n");
-        return -EINVAL;
-    }
+	if (mc_header->ldrver != 1 || mc_header->hdrver != 1) {
+		if (print_err)
+			pr_err("Error: invalid/unknown microcode update format.\n");
+		return -EINVAL;
+	}
 
-    ext_table_size = total_size - (MC_HEADER_SIZE + data_size);
-    if (ext_table_size) {
-        u32 ext_table_sum = 0;
-        u32 *ext_tablep;
+	ext_table_size = total_size - (MC_HEADER_SIZE + data_size);
+	if (ext_table_size) {
+		u32 ext_table_sum = 0;
+		u32 *ext_tablep;
 
-        if ((ext_table_size < EXT_HEADER_SIZE)
-                || ((ext_table_size - EXT_HEADER_SIZE) % EXT_SIGNATURE_SIZE)) {
-            if (print_err)
-                pr_err("Error: truncated extended signature table.\n");
-            return -EINVAL;
-        }
+		if ((ext_table_size < EXT_HEADER_SIZE) ||
+		    ((ext_table_size - EXT_HEADER_SIZE) % EXT_SIGNATURE_SIZE)) {
+			if (print_err)
+				pr_err("Error: truncated extended signature table.\n");
+			return -EINVAL;
+		}
 
-        ext_header = mc + MC_HEADER_SIZE + data_size;
-        if (ext_table_size != exttable_size(ext_header)) {
-            if (print_err)
-                pr_err("Error: extended signature table size mismatch.\n");
-            return -EFAULT;
-        }
+		ext_header = mc + MC_HEADER_SIZE + data_size;
+		if (ext_table_size != exttable_size(ext_header)) {
+			if (print_err)
+				pr_err("Error: extended signature table size mismatch.\n");
+			return -EFAULT;
+		}
 
-        ext_sigcount = ext_header->count;
+		ext_sigcount = ext_header->count;
 
-        /*
+		/*
          * Check extended table checksum: the sum of all dwords that
          * comprise a valid table must be 0.
          */
-        ext_tablep = (u32 *)ext_header;
+		ext_tablep = (u32 *)ext_header;
 
-        i = ext_table_size / sizeof(u32);
-        while (i--)
-            ext_table_sum += ext_tablep[i];
+		i = ext_table_size / sizeof(u32);
+		while (i--)
+			ext_table_sum += ext_tablep[i];
 
-        if (ext_table_sum) {
-            if (print_err)
-                pr_warn("Bad extended signature table checksum, aborting.\n");
-            return -EINVAL;
-        }
-    }
+		if (ext_table_sum) {
+			if (print_err)
+				pr_warn("Bad extended signature table checksum, aborting.\n");
+			return -EINVAL;
+		}
+	}
 
-    /*
+	/*
      * Calculate the checksum of update data and header. The checksum of
      * valid update data and header including the extended signature table
      * must be 0.
      */
-    orig_sum = 0;
-    i = (MC_HEADER_SIZE + data_size) / sizeof(u32);
-    while (i--)
-        orig_sum += ((u32 *)mc)[i];
+	orig_sum = 0;
+	i = (MC_HEADER_SIZE + data_size) / sizeof(u32);
+	while (i--)
+		orig_sum += ((u32 *)mc)[i];
 
-    if (orig_sum) {
-        if (print_err)
-            pr_err("Bad microcode data checksum, aborting.\n");
-        return -EINVAL;
-    }
+	if (orig_sum) {
+		if (print_err)
+			pr_err("Bad microcode data checksum, aborting.\n");
+		return -EINVAL;
+	}
 
-    if (!ext_table_size)
-        return 0;
+	if (!ext_table_size)
+		return 0;
 
-    /*
+	/*
      * Check extended signature checksum: 0 => valid.
      */
-    for (i = 0; i < ext_sigcount; i++) {
-        ext_sig = (void *)ext_header + EXT_HEADER_SIZE +
-                  EXT_SIGNATURE_SIZE * i;
+	for (i = 0; i < ext_sigcount; i++) {
+		ext_sig = (void *)ext_header + EXT_HEADER_SIZE +
+			  EXT_SIGNATURE_SIZE * i;
 
-        sum = (mc_header->sig + mc_header->pf + mc_header->cksum) -
-              (ext_sig->sig + ext_sig->pf + ext_sig->cksum);
-        if (sum) {
-            if (print_err)
-                pr_err("Bad extended signature checksum, aborting.\n");
-            return -EINVAL;
-        }
-    }
-    return 0;
+		sum = (mc_header->sig + mc_header->pf + mc_header->cksum) -
+		      (ext_sig->sig + ext_sig->pf + ext_sig->cksum);
+		if (sum) {
+			if (print_err)
+				pr_err("Bad extended signature checksum, aborting.\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -294,157 +298,152 @@ static int microcode_sanity_check(void *mc, int print_err)
 static struct microcode_intel *
 scan_microcode(void *data, size_t size, struct ucode_cpu_info *uci, bool save)
 {
-    struct microcode_header_intel *mc_header;
-    struct microcode_intel *patch = NULL;
-    unsigned int mc_size;
+	struct microcode_header_intel *mc_header;
+	struct microcode_intel *patch = NULL;
+	unsigned int mc_size;
 
-    while (size) {
-        if (size < sizeof(struct microcode_header_intel))
-            break;
+	while (size) {
+		if (size < sizeof(struct microcode_header_intel))
+			break;
 
-        mc_header = (struct microcode_header_intel *)data;
+		mc_header = (struct microcode_header_intel *)data;
 
-        mc_size = get_totalsize(mc_header);
-        if (!mc_size ||
-                mc_size > size ||
-                microcode_sanity_check(data, 0) < 0)
-            break;
+		mc_size = get_totalsize(mc_header);
+		if (!mc_size || mc_size > size ||
+		    microcode_sanity_check(data, 0) < 0)
+			break;
 
-        size -= mc_size;
+		size -= mc_size;
 
-        if (!find_matching_signature(data, uci->cpu_sig.sig,
-                                     uci->cpu_sig.pf)) {
-            data += mc_size;
-            continue;
-        }
+		if (!find_matching_signature(data, uci->cpu_sig.sig,
+					     uci->cpu_sig.pf)) {
+			data += mc_size;
+			continue;
+		}
 
-        if (save) {
-            save_microcode_patch(uci, data, mc_size);
-            goto next;
-        }
+		if (save) {
+			save_microcode_patch(uci, data, mc_size);
+			goto next;
+		}
 
+		if (!patch) {
+			if (!has_newer_microcode(data, uci->cpu_sig.sig,
+						 uci->cpu_sig.pf,
+						 uci->cpu_sig.rev))
+				goto next;
 
-        if (!patch) {
-            if (!has_newer_microcode(data,
-                                     uci->cpu_sig.sig,
-                                     uci->cpu_sig.pf,
-                                     uci->cpu_sig.rev))
-                goto next;
+		} else {
+			struct microcode_header_intel *phdr = &patch->hdr;
 
-        } else {
-            struct microcode_header_intel *phdr = &patch->hdr;
+			if (!has_newer_microcode(data, phdr->sig, phdr->pf,
+						 phdr->rev))
+				goto next;
+		}
 
-            if (!has_newer_microcode(data,
-                                     phdr->sig,
-                                     phdr->pf,
-                                     phdr->rev))
-                goto next;
-        }
+		/* We have a newer patch, save it. */
+		patch = data;
 
-        /* We have a newer patch, save it. */
-        patch = data;
+	next:
+		data += mc_size;
+	}
 
-next:
-        data += mc_size;
-    }
+	if (size)
+		return NULL;
 
-    if (size)
-        return NULL;
-
-    return patch;
+	return patch;
 }
 
 static int collect_cpu_info_early(struct ucode_cpu_info *uci)
 {
-    unsigned int val[2];
-    unsigned int family, model;
-    struct cpu_signature csig = { 0 };
-    unsigned int eax, ebx, ecx, edx;
+	unsigned int val[2];
+	unsigned int family, model;
+	struct cpu_signature csig = { 0 };
+	unsigned int eax, ebx, ecx, edx;
 
-    memset(uci, 0, sizeof(*uci));
+	memset(uci, 0, sizeof(*uci));
 
-    eax = 0x00000001;
-    ecx = 0;
-    native_cpuid(&eax, &ebx, &ecx, &edx);
-    csig.sig = eax;
+	eax = 0x00000001;
+	ecx = 0;
+	native_cpuid(&eax, &ebx, &ecx, &edx);
+	csig.sig = eax;
 
-    family = x86_family(eax);
-    model  = x86_model(eax);
+	family = x86_family(eax);
+	model = x86_model(eax);
 
-    if ((model >= 5) || (family > 6)) {
-        /* get processor flags from MSR 0x17 */
-        native_rdmsr(MSR_IA32_PLATFORM_ID, val[0], val[1]);
-        csig.pf = 1 << ((val[1] >> 18) & 7);
-    }
+	if ((model >= 5) || (family > 6)) {
+		/* get processor flags from MSR 0x17 */
+		native_rdmsr(MSR_IA32_PLATFORM_ID, val[0], val[1]);
+		csig.pf = 1 << ((val[1] >> 18) & 7);
+	}
 
-    csig.rev = intel_get_microcode_revision();
+	csig.rev = intel_get_microcode_revision();
 
-    uci->cpu_sig = csig;
-    uci->valid = 1;
+	uci->cpu_sig = csig;
+	uci->valid = 1;
 
-    return 0;
+	return 0;
 }
 
 static void show_saved_mc(void)
 {
 #ifdef DEBUG
-    int i = 0, j;
-    unsigned int sig, pf, rev, total_size, data_size, date;
-    struct ucode_cpu_info uci;
-    struct ucode_patch *p;
+	int i = 0, j;
+	unsigned int sig, pf, rev, total_size, data_size, date;
+	struct ucode_cpu_info uci;
+	struct ucode_patch *p;
 
-    if (list_empty(&microcode_cache)) {
-        pr_debug("no microcode data saved.\n");
-        return;
-    }
+	if (list_empty(&microcode_cache)) {
+		pr_debug("no microcode data saved.\n");
+		return;
+	}
 
-    collect_cpu_info_early(&uci);
+	collect_cpu_info_early(&uci);
 
-    sig	= uci.cpu_sig.sig;
-    pf	= uci.cpu_sig.pf;
-    rev	= uci.cpu_sig.rev;
-    pr_debug("CPU: sig=0x%x, pf=0x%x, rev=0x%x\n", sig, pf, rev);
+	sig = uci.cpu_sig.sig;
+	pf = uci.cpu_sig.pf;
+	rev = uci.cpu_sig.rev;
+	pr_debug("CPU: sig=0x%x, pf=0x%x, rev=0x%x\n", sig, pf, rev);
 
-    list_for_each_entry(p, &microcode_cache, plist) {
-        struct microcode_header_intel *mc_saved_header;
-        struct extended_sigtable *ext_header;
-        struct extended_signature *ext_sig;
-        int ext_sigcount;
+	list_for_each_entry (p, &microcode_cache, plist) {
+		struct microcode_header_intel *mc_saved_header;
+		struct extended_sigtable *ext_header;
+		struct extended_signature *ext_sig;
+		int ext_sigcount;
 
-        mc_saved_header = (struct microcode_header_intel *)p->data;
+		mc_saved_header = (struct microcode_header_intel *)p->data;
 
-        sig	= mc_saved_header->sig;
-        pf	= mc_saved_header->pf;
-        rev	= mc_saved_header->rev;
-        date	= mc_saved_header->date;
+		sig = mc_saved_header->sig;
+		pf = mc_saved_header->pf;
+		rev = mc_saved_header->rev;
+		date = mc_saved_header->date;
 
-        total_size	= get_totalsize(mc_saved_header);
-        data_size	= get_datasize(mc_saved_header);
+		total_size = get_totalsize(mc_saved_header);
+		data_size = get_datasize(mc_saved_header);
 
-        pr_debug("mc_saved[%d]: sig=0x%x, pf=0x%x, rev=0x%x, total size=0x%x, date = %04x-%02x-%02x\n",
-                 i++, sig, pf, rev, total_size,
-                 date & 0xffff,
-                 date >> 24,
-                 (date >> 16) & 0xff);
+		pr_debug(
+			"mc_saved[%d]: sig=0x%x, pf=0x%x, rev=0x%x, total size=0x%x, date = %04x-%02x-%02x\n",
+			i++, sig, pf, rev, total_size, date & 0xffff,
+			date >> 24, (date >> 16) & 0xff);
 
-        /* Look for ext. headers: */
-        if (total_size <= data_size + MC_HEADER_SIZE)
-            continue;
+		/* Look for ext. headers: */
+		if (total_size <= data_size + MC_HEADER_SIZE)
+			continue;
 
-        ext_header = (void *)mc_saved_header + data_size + MC_HEADER_SIZE;
-        ext_sigcount = ext_header->count;
-        ext_sig = (void *)ext_header + EXT_HEADER_SIZE;
+		ext_header =
+			(void *)mc_saved_header + data_size + MC_HEADER_SIZE;
+		ext_sigcount = ext_header->count;
+		ext_sig = (void *)ext_header + EXT_HEADER_SIZE;
 
-        for (j = 0; j < ext_sigcount; j++) {
-            sig = ext_sig->sig;
-            pf = ext_sig->pf;
+		for (j = 0; j < ext_sigcount; j++) {
+			sig = ext_sig->sig;
+			pf = ext_sig->pf;
 
-            pr_debug("\tExtended[%d]: sig=0x%x, pf=0x%x\n",
-                     j, sig, pf);
+			pr_debug("\tExtended[%d]: sig=0x%x, pf=0x%x\n", j, sig,
+				 pf);
 
-            ext_sig++;
-        }
-    }
+			ext_sig++;
+		}
+	}
 #endif
 }
 
@@ -452,53 +451,52 @@ static void show_saved_mc(void)
  * Save this microcode patch. It will be loaded early when a CPU is
  * hot-added or resumes.
  */
-static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc, unsigned int size)
+static void save_mc_for_early(struct ucode_cpu_info *uci, u8 *mc,
+			      unsigned int size)
 {
-    /* Synchronization during CPU hotplug. */
-    static DEFINE_MUTEX(x86_cpu_microcode_mutex);
+	/* Synchronization during CPU hotplug. */
+	static DEFINE_MUTEX(x86_cpu_microcode_mutex);
 
-    mutex_lock(&x86_cpu_microcode_mutex);
+	mutex_lock(&x86_cpu_microcode_mutex);
 
-    save_microcode_patch(uci, mc, size);
-    show_saved_mc();
+	save_microcode_patch(uci, mc, size);
+	show_saved_mc();
 
-    mutex_unlock(&x86_cpu_microcode_mutex);
+	mutex_unlock(&x86_cpu_microcode_mutex);
 }
 
 static bool load_builtin_intel_microcode(struct cpio_data *cp)
 {
-    unsigned int eax = 1, ebx, ecx = 0, edx;
-    struct firmware fw;
-    char name[30];
+	unsigned int eax = 1, ebx, ecx = 0, edx;
+	struct firmware fw;
+	char name[30];
 
-    if (IS_ENABLED(CONFIG_X86_32))
-        return false;
+	if (IS_ENABLED(CONFIG_X86_32))
+		return false;
 
-    native_cpuid(&eax, &ebx, &ecx, &edx);
+	native_cpuid(&eax, &ebx, &ecx, &edx);
 
-    sprintf(name, "intel-ucode/%02x-%02x-%02x",
-            x86_family(eax), x86_model(eax), x86_stepping(eax));
+	sprintf(name, "intel-ucode/%02x-%02x-%02x", x86_family(eax),
+		x86_model(eax), x86_stepping(eax));
 
-    if (firmware_request_builtin(&fw, name)) {
-        cp->size = fw.size;
-        cp->data = (void *)fw.data;
-        return true;
-    }
+	if (firmware_request_builtin(&fw, name)) {
+		cp->size = fw.size;
+		cp->data = (void *)fw.data;
+		return true;
+	}
 
-    return false;
+	return false;
 }
 
 /*
  * Print ucode update info.
  */
-static void
-print_ucode_info(struct ucode_cpu_info *uci, unsigned int date)
+static void print_ucode_info(struct ucode_cpu_info *uci, unsigned int date)
 {
-    pr_info_once("microcode updated early to revision 0x%x, date = %04x-%02x-%02x\n",
-                 uci->cpu_sig.rev,
-                 date & 0xffff,
-                 date >> 24,
-                 (date >> 16) & 0xff);
+	pr_info_once(
+		"microcode updated early to revision 0x%x, date = %04x-%02x-%02x\n",
+		uci->cpu_sig.rev, date & 0xffff, date >> 24,
+		(date >> 16) & 0xff);
 }
 
 #ifdef CONFIG_X86_32
@@ -511,13 +509,13 @@ static int current_mc_date;
  */
 void show_ucode_info_early(void)
 {
-    struct ucode_cpu_info uci;
+	struct ucode_cpu_info uci;
 
-    if (delay_ucode_info) {
-        collect_cpu_info_early(&uci);
-        print_ucode_info(&uci, current_mc_date);
-        delay_ucode_info = 0;
-    }
+	if (delay_ucode_info) {
+		collect_cpu_info_early(&uci);
+		print_ucode_info(&uci, current_mc_date);
+		delay_ucode_info = 0;
+	}
 }
 
 /*
@@ -526,135 +524,135 @@ void show_ucode_info_early(void)
  */
 static void print_ucode(struct ucode_cpu_info *uci)
 {
-    struct microcode_intel *mc;
-    int *delay_ucode_info_p;
-    int *current_mc_date_p;
+	struct microcode_intel *mc;
+	int *delay_ucode_info_p;
+	int *current_mc_date_p;
 
-    mc = uci->mc;
-    if (!mc)
-        return;
+	mc = uci->mc;
+	if (!mc)
+		return;
 
-    delay_ucode_info_p = (int *)__pa_nodebug(&delay_ucode_info);
-    current_mc_date_p = (int *)__pa_nodebug(&current_mc_date);
+	delay_ucode_info_p = (int *)__pa_nodebug(&delay_ucode_info);
+	current_mc_date_p = (int *)__pa_nodebug(&current_mc_date);
 
-    *delay_ucode_info_p = 1;
-    *current_mc_date_p = mc->hdr.date;
+	*delay_ucode_info_p = 1;
+	*current_mc_date_p = mc->hdr.date;
 }
 #else
 
 static inline void print_ucode(struct ucode_cpu_info *uci)
 {
-    struct microcode_intel *mc;
+	struct microcode_intel *mc;
 
-    mc = uci->mc;
-    if (!mc)
-        return;
+	mc = uci->mc;
+	if (!mc)
+		return;
 
-    print_ucode_info(uci, mc->hdr.date);
+	print_ucode_info(uci, mc->hdr.date);
 }
 #endif
 
 static int apply_microcode_early(struct ucode_cpu_info *uci, bool early)
 {
-    struct microcode_intel *mc;
-    u32 rev;
+	struct microcode_intel *mc;
+	u32 rev;
 
-    mc = uci->mc;
-    if (!mc)
-        return 0;
+	mc = uci->mc;
+	if (!mc)
+		return 0;
 
-    /*
+	/*
      * Save us the MSR write below - which is a particular expensive
      * operation - when the other hyperthread has updated the microcode
      * already.
      */
-    rev = intel_get_microcode_revision();
-    if (rev > mc->hdr.rev) {
-        uci->cpu_sig.rev = rev;
-        return UCODE_OK;
-    }
+	rev = intel_get_microcode_revision();
+	if (rev > mc->hdr.rev) {
+		uci->cpu_sig.rev = rev;
+		return UCODE_OK;
+	}
 
-    if (rev == mc->hdr.rev) {
-        if (!force_ucode_load) {
-            printk ("Matching ucode rev, no update\n");
-            return UCODE_OK;
-        } else {
-            printk ("Matching ucode rev.. force updating\n");
-        }
-    }
+	if (rev == mc->hdr.rev) {
+		if (!force_ucode_load) {
+			printk("Matching ucode rev, no update\n");
+			return UCODE_OK;
+		} else {
+			printk("Matching ucode rev.. force updating\n");
+		}
+	}
 
-    /*
+	/*
      * Writeback and invalidate caches before updating microcode to avoid
      * internal issues depending on what the microcode is updating.
      */
-    native_wbinvd();
+	native_wbinvd();
 
-    /* write microcode via MSR 0x79 */
-    native_wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
+	/* write microcode via MSR 0x79 */
+	native_wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
 
-    rev = intel_get_microcode_revision();
-    if (rev != mc->hdr.rev)
-        return -1;
+	rev = intel_get_microcode_revision();
+	if (rev != mc->hdr.rev)
+		return -1;
 
-    uci->cpu_sig.rev = rev;
+	uci->cpu_sig.rev = rev;
 
-    if (early)
-        print_ucode(uci);
-    else
-        print_ucode_info(uci, mc->hdr.date);
+	if (early)
+		print_ucode(uci);
+	else
+		print_ucode_info(uci, mc->hdr.date);
 
-    return 0;
+	return 0;
 }
 
 int __init save_microcode_in_initrd_intel(void)
 {
-    struct ucode_cpu_info uci;
-    struct cpio_data cp;
+	struct ucode_cpu_info uci;
+	struct cpio_data cp;
 
-    /*
+	/*
      * initrd is going away, clear patch ptr. We will scan the microcode one
      * last time before jettisoning and save a patch, if found. Then we will
      * update that pointer too, with a stable patch address to use when
      * resuming the cores.
      */
-    intel_ucode_patch = NULL;
+	intel_ucode_patch = NULL;
 
-    if (!load_builtin_intel_microcode(&cp))
-        cp = find_microcode_in_initrd(ucode_path, false);
+	if (!load_builtin_intel_microcode(&cp))
+		cp = find_microcode_in_initrd(ucode_path, false);
 
-    if (!(cp.data && cp.size))
-        return 0;
+	if (!(cp.data && cp.size))
+		return 0;
 
-    collect_cpu_info_early(&uci);
+	collect_cpu_info_early(&uci);
 
-    scan_microcode(cp.data, cp.size, &uci, true);
+	scan_microcode(cp.data, cp.size, &uci, true);
 
-    show_saved_mc();
+	show_saved_mc();
 
-    return 0;
+	return 0;
 }
 
 static bool check_force_ucode_bsp(void)
 {
-    static const char *__force_ucode_str = "force_ucode_load";
+	static const char *__force_ucode_str = "force_ucode_load";
 
 #ifdef CONFIG_X86_32
-    const char *cmdline = (const char *)__pa_nodebug(boot_command_line);
-    const char *option  = (const char *)__pa_nodebug(__force_ucode_str);
-    bool *res = (bool *)__pa_nodebug(&force_ucode_load);
+	const char *cmdline = (const char *)__pa_nodebug(boot_command_line);
+	const char *option = (const char *)__pa_nodebug(__force_ucode_str);
+	bool *res = (bool *)__pa_nodebug(&force_ucode_load);
 
 #else /* CONFIG_X86_64 */
-    const char *cmdline = boot_command_line;
-    const char *option  = __force_ucode_str;
-    bool *res = &force_ucode_load;
+	const char *cmdline = boot_command_line;
+	const char *option = __force_ucode_str;
+	bool *res = &force_ucode_load;
 #endif
 
-    if (cmdline_find_option_bool(cmdline, option)) {
-        printk("cmdline forcing ucode update for same rev\n");
-        *res = true;
-    }
+	if (cmdline_find_option_bool(cmdline, option)) {
+		printk("cmdline forcing ucode update for same rev\n");
+		*res = true;
+	}
 
-    return *res;
+	return *res;
 }
 
 /*
@@ -662,399 +660,399 @@ static bool check_force_ucode_bsp(void)
  */
 static struct microcode_intel *__load_ucode_intel(struct ucode_cpu_info *uci)
 {
-    static const char *path;
-    struct cpio_data cp;
-    bool use_pa;
+	static const char *path;
+	struct cpio_data cp;
+	bool use_pa;
 
-    if (IS_ENABLED(CONFIG_X86_32)) {
-        path	  = (const char *)__pa_nodebug(ucode_path);
-        use_pa	  = true;
-    } else {
-        path	  = ucode_path;
-        use_pa	  = false;
-    }
+	if (IS_ENABLED(CONFIG_X86_32)) {
+		path = (const char *)__pa_nodebug(ucode_path);
+		use_pa = true;
+	} else {
+		path = ucode_path;
+		use_pa = false;
+	}
 
-    /* try built-in microcode first */
-    if (!load_builtin_intel_microcode(&cp))
-        cp = find_microcode_in_initrd(path, use_pa);
+	/* try built-in microcode first */
+	if (!load_builtin_intel_microcode(&cp))
+		cp = find_microcode_in_initrd(path, use_pa);
 
-    if (!(cp.data && cp.size))
-        return NULL;
+	if (!(cp.data && cp.size))
+		return NULL;
 
-    collect_cpu_info_early(uci);
+	collect_cpu_info_early(uci);
 
-    return scan_microcode(cp.data, cp.size, uci, false);
+	return scan_microcode(cp.data, cp.size, uci, false);
 }
 
 void __init load_ucode_intel_bsp(void)
 {
-    struct microcode_intel *patch;
-    struct ucode_cpu_info uci;
-    bool force_bsp;
+	struct microcode_intel *patch;
+	struct ucode_cpu_info uci;
+	bool force_bsp;
 
-    force_bsp = check_force_ucode_bsp();
+	force_bsp = check_force_ucode_bsp();
 
-    patch = __load_ucode_intel(&uci);
-    if (!patch)
-        return;
+	patch = __load_ucode_intel(&uci);
+	if (!patch)
+		return;
 
-    uci.mc = patch;
+	uci.mc = patch;
 
-    apply_microcode_early(&uci, true);
+	apply_microcode_early(&uci, true);
 }
 
 void load_ucode_intel_ap(void)
 {
-    struct microcode_intel *patch, **iup;
-    struct ucode_cpu_info uci;
+	struct microcode_intel *patch, **iup;
+	struct ucode_cpu_info uci;
 
-    if (IS_ENABLED(CONFIG_X86_32))
-        iup = (struct microcode_intel **) __pa_nodebug(&intel_ucode_patch);
-    else
-        iup = &intel_ucode_patch;
+	if (IS_ENABLED(CONFIG_X86_32))
+		iup = (struct microcode_intel **)__pa_nodebug(
+			&intel_ucode_patch);
+	else
+		iup = &intel_ucode_patch;
 
 reget:
-    if (!*iup) {
-        patch = __load_ucode_intel(&uci);
-        if (!patch)
-            return;
+	if (!*iup) {
+		patch = __load_ucode_intel(&uci);
+		if (!patch)
+			return;
 
-        *iup = patch;
-    }
+		*iup = patch;
+	}
 
-    uci.mc = *iup;
+	uci.mc = *iup;
 
-    if (apply_microcode_early(&uci, true)) {
-        /* Mixed-silicon system? Try to refetch the proper patch: */
-        *iup = NULL;
+	if (apply_microcode_early(&uci, true)) {
+		/* Mixed-silicon system? Try to refetch the proper patch: */
+		*iup = NULL;
 
-        goto reget;
-    }
+		goto reget;
+	}
 }
 
 static struct microcode_intel *find_patch(struct ucode_cpu_info *uci)
 {
-    struct microcode_header_intel *phdr;
-    struct ucode_patch *iter, *tmp;
+	struct microcode_header_intel *phdr;
+	struct ucode_patch *iter, *tmp;
 
-    list_for_each_entry_safe(iter, tmp, &microcode_cache, plist) {
+	list_for_each_entry_safe (iter, tmp, &microcode_cache, plist) {
+		phdr = (struct microcode_header_intel *)iter->data;
 
-        phdr = (struct microcode_header_intel *)iter->data;
+		if (phdr->rev < uci->cpu_sig.rev)
+			continue;
+		if (phdr->rev == uci->cpu_sig.rev && !force_ucode_load)
+			continue;
+		else
+			printk("same rev forcing ucode\n");
 
-        if (phdr->rev < uci->cpu_sig.rev)
-            continue;
-        if (phdr->rev == uci->cpu_sig.rev && !force_ucode_load)
-            continue;
-        else
-            printk ("same rev forcing ucode\n");
+		if (!find_matching_signature(phdr, uci->cpu_sig.sig,
+					     uci->cpu_sig.pf))
+			continue;
 
-        if (!find_matching_signature(phdr,
-                                     uci->cpu_sig.sig,
-                                     uci->cpu_sig.pf))
-            continue;
-
-        return iter->data;
-    }
-    return NULL;
+		return iter->data;
+	}
+	return NULL;
 }
 
 void reload_ucode_intel(void)
 {
-    struct microcode_intel *p;
-    struct ucode_cpu_info uci;
+	struct microcode_intel *p;
+	struct ucode_cpu_info uci;
 
-    collect_cpu_info_early(&uci);
+	collect_cpu_info_early(&uci);
 
-    p = find_patch(&uci);
-    if (!p)
-        return;
+	p = find_patch(&uci);
+	if (!p)
+		return;
 
-    uci.mc = p;
+	uci.mc = p;
 
-    apply_microcode_early(&uci, false);
+	apply_microcode_early(&uci, false);
 }
 
 static int collect_cpu_info(int cpu_num, struct cpu_signature *csig)
 {
-    static struct cpu_signature prev;
-    struct cpuinfo_x86 *c = &cpu_data(cpu_num);
-    unsigned int val[2];
+	static struct cpu_signature prev;
+	struct cpuinfo_x86 *c = &cpu_data(cpu_num);
+	unsigned int val[2];
 
-    memset(csig, 0, sizeof(*csig));
+	memset(csig, 0, sizeof(*csig));
 
-    csig->sig = cpuid_eax(0x00000001);
+	csig->sig = cpuid_eax(0x00000001);
 
-    if ((c->x86_model >= 5) || (c->x86 > 6)) {
-        /* get processor flags from MSR 0x17 */
-        rdmsr(MSR_IA32_PLATFORM_ID, val[0], val[1]);
-        csig->pf = 1 << ((val[1] >> 18) & 7);
-    }
+	if ((c->x86_model >= 5) || (c->x86 > 6)) {
+		/* get processor flags from MSR 0x17 */
+		rdmsr(MSR_IA32_PLATFORM_ID, val[0], val[1]);
+		csig->pf = 1 << ((val[1] >> 18) & 7);
+	}
 
-    csig->rev = c->microcode;
+	csig->rev = c->microcode;
 
-    /* No extra locking on prev, races are harmless. */
-    if (csig->sig != prev.sig || csig->pf != prev.pf || csig->rev != prev.rev) {
-        pr_info("sig=0x%x, pf=0x%x, revision=0x%x\n",
-                csig->sig, csig->pf, csig->rev);
-        prev = *csig;
-    }
+	/* No extra locking on prev, races are harmless. */
+	if (csig->sig != prev.sig || csig->pf != prev.pf ||
+	    csig->rev != prev.rev) {
+		pr_info("sig=0x%x, pf=0x%x, revision=0x%x\n", csig->sig,
+			csig->pf, csig->rev);
+		prev = *csig;
+	}
 
-    return 0;
+	return 0;
 }
 
 static enum ucode_state apply_microcode_intel(int cpu)
 {
-    struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
-    struct cpuinfo_x86 *c = &cpu_data(cpu);
-    bool bsp = c->cpu_index == boot_cpu_data.cpu_index;
-    struct microcode_intel *mc;
-    enum ucode_state ret;
-    static int prev_rev;
-    u32 rev;
+	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
+	struct cpuinfo_x86 *c = &cpu_data(cpu);
+	bool bsp = c->cpu_index == boot_cpu_data.cpu_index;
+	struct microcode_intel *mc;
+	enum ucode_state ret;
+	static int prev_rev;
+	u32 rev;
 
-    /* We should bind the task to the CPU */
-    if (WARN_ON(raw_smp_processor_id() != cpu))
-        return UCODE_ERROR;
+	/* We should bind the task to the CPU */
+	if (WARN_ON(raw_smp_processor_id() != cpu))
+		return UCODE_ERROR;
 
-    /* Look for a newer patch in our cache: */
-    mc = find_patch(uci);
-    if (!mc) {
-        mc = uci->mc;
-        if (!mc)
-            return UCODE_NFOUND;
-    }
+	/* Look for a newer patch in our cache: */
+	mc = find_patch(uci);
+	if (!mc) {
+		mc = uci->mc;
+		if (!mc)
+			return UCODE_NFOUND;
+	}
 
-    /*
+	/*
      * Save us the MSR write below - which is a particular expensive
      * operation - when the other hyperthread has updated the microcode
      * already.
      */
-    rev = intel_get_microcode_revision();
-    if (rev > mc->hdr.rev || (rev == mc->hdr.rev && !force_ucode_load)) {
-        ret = UCODE_OK;
-        goto out;
-    }
+	rev = intel_get_microcode_revision();
+	if (rev > mc->hdr.rev || (rev == mc->hdr.rev && !force_ucode_load)) {
+		ret = UCODE_OK;
+		goto out;
+	}
 
-    /*
+	/*
      * Writeback and invalidate caches before updating microcode to avoid
      * internal issues depending on what the microcode is updating.
      */
-    native_wbinvd();
+	native_wbinvd();
 
-    /* write microcode via MSR 0x79 */
-    wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
+	/* write microcode via MSR 0x79 */
+	wrmsrl(MSR_IA32_UCODE_WRITE, (unsigned long)mc->bits);
 
-    rev = intel_get_microcode_revision();
+	rev = intel_get_microcode_revision();
 
-    if (rev != mc->hdr.rev) {
-        pr_err("CPU%d update to revision 0x%x failed\n",
-               cpu, mc->hdr.rev);
-        return UCODE_ERROR;
-    }
+	if (rev != mc->hdr.rev) {
+		pr_err("CPU%d update to revision 0x%x failed\n", cpu,
+		       mc->hdr.rev);
+		return UCODE_ERROR;
+	}
 
-    if (bsp && rev != prev_rev) {
-        pr_info("updated to revision 0x%x, date = %04x-%02x-%02x\n",
-                rev,
-                mc->hdr.date & 0xffff,
-                mc->hdr.date >> 24,
-                (mc->hdr.date >> 16) & 0xff);
-        prev_rev = rev;
-    }
+	if (bsp && rev != prev_rev) {
+		pr_info("updated to revision 0x%x, date = %04x-%02x-%02x\n",
+			rev, mc->hdr.date & 0xffff, mc->hdr.date >> 24,
+			(mc->hdr.date >> 16) & 0xff);
+		prev_rev = rev;
+	}
 
-    ret = UCODE_UPDATED;
+	ret = UCODE_UPDATED;
 
 out:
-    uci->cpu_sig.rev = rev;
-    c->microcode	 = rev;
+	uci->cpu_sig.rev = rev;
+	c->microcode = rev;
 
-    /* Update boot_cpu_data's revision too, if we're on the BSP: */
-    if (bsp)
-        boot_cpu_data.microcode = rev;
+	/* Update boot_cpu_data's revision too, if we're on the BSP: */
+	if (bsp)
+		boot_cpu_data.microcode = rev;
 
-    return ret;
+	return ret;
 }
 
 static enum ucode_state generic_load_microcode(int cpu, struct iov_iter *iter)
 {
-    struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
-    unsigned int curr_mc_size = 0, new_mc_size = 0;
-    enum ucode_state ret = UCODE_OK;
-    int new_rev = uci->cpu_sig.rev;
-    u8 *new_mc = NULL, *mc = NULL;
-    unsigned int csig, cpf;
+	struct ucode_cpu_info *uci = ucode_cpu_info + cpu;
+	unsigned int curr_mc_size = 0, new_mc_size = 0;
+	enum ucode_state ret = UCODE_OK;
+	int new_rev = uci->cpu_sig.rev;
+	u8 *new_mc = NULL, *mc = NULL;
+	unsigned int csig, cpf;
 
-    while (iov_iter_count(iter)) {
-        struct microcode_header_intel mc_header;
-        unsigned int mc_size, data_size;
-        u8 *data;
+	while (iov_iter_count(iter)) {
+		struct microcode_header_intel mc_header;
+		unsigned int mc_size, data_size;
+		u8 *data;
 
-        if (!copy_from_iter_full(&mc_header, sizeof(mc_header), iter)) {
-            pr_err("error! Truncated or inaccessible header in microcode data file\n");
-            break;
-        }
+		if (!copy_from_iter_full(&mc_header, sizeof(mc_header), iter)) {
+			pr_err("error! Truncated or inaccessible header in microcode data file\n");
+			break;
+		}
 
-        mc_size = get_totalsize(&mc_header);
-        if (mc_size < sizeof(mc_header)) {
-            pr_err("error! Bad data in microcode data file (totalsize too small)\n");
-            break;
-        }
-        data_size = mc_size - sizeof(mc_header);
-        if (data_size > iov_iter_count(iter)) {
-            pr_err("error! Bad data in microcode data file (truncated file?)\n");
-            break;
-        }
+		mc_size = get_totalsize(&mc_header);
+		if (mc_size < sizeof(mc_header)) {
+			pr_err("error! Bad data in microcode data file (totalsize too small)\n");
+			break;
+		}
+		data_size = mc_size - sizeof(mc_header);
+		if (data_size > iov_iter_count(iter)) {
+			pr_err("error! Bad data in microcode data file (truncated file?)\n");
+			break;
+		}
 
-        /* For performance reasons, reuse mc area when possible */
-        if (!mc || mc_size > curr_mc_size) {
-            vfree(mc);
-            mc = vmalloc(mc_size);
-            if (!mc)
-                break;
-            curr_mc_size = mc_size;
-        }
+		/* For performance reasons, reuse mc area when possible */
+		if (!mc || mc_size > curr_mc_size) {
+			vfree(mc);
+			mc = vmalloc(mc_size);
+			if (!mc)
+				break;
+			curr_mc_size = mc_size;
+		}
 
-        memcpy(mc, &mc_header, sizeof(mc_header));
-        data = mc + sizeof(mc_header);
-        if (!copy_from_iter_full(data, data_size, iter) ||
-                microcode_sanity_check(mc, 1) < 0) {
-            break;
-        }
+		memcpy(mc, &mc_header, sizeof(mc_header));
+		data = mc + sizeof(mc_header);
+		if (!copy_from_iter_full(data, data_size, iter) ||
+		    microcode_sanity_check(mc, 1) < 0) {
+			break;
+		}
 
-        csig = uci->cpu_sig.sig;
-        cpf = uci->cpu_sig.pf;
-        if (has_newer_microcode(mc, csig, cpf, new_rev)) {
-            vfree(new_mc);
-            new_rev = mc_header.rev;
-            new_mc  = mc;
-            new_mc_size = mc_size;
-            mc = NULL;	/* trigger new vmalloc */
-            ret = UCODE_NEW;
-        }
-    }
+		csig = uci->cpu_sig.sig;
+		cpf = uci->cpu_sig.pf;
+		if (has_newer_microcode(mc, csig, cpf, new_rev)) {
+			vfree(new_mc);
+			new_rev = mc_header.rev;
+			new_mc = mc;
+			new_mc_size = mc_size;
+			mc = NULL; /* trigger new vmalloc */
+			ret = UCODE_NEW;
+		}
+	}
 
-    vfree(mc);
+	vfree(mc);
 
-    if (iov_iter_count(iter)) {
-        vfree(new_mc);
-        return UCODE_ERROR;
-    }
+	if (iov_iter_count(iter)) {
+		vfree(new_mc);
+		return UCODE_ERROR;
+	}
 
-    if (!new_mc)
-        return UCODE_NFOUND;
+	if (!new_mc)
+		return UCODE_NFOUND;
 
-    vfree(uci->mc);
-    uci->mc = (struct microcode_intel *)new_mc;
+	vfree(uci->mc);
+	uci->mc = (struct microcode_intel *)new_mc;
 
-    /*
+	/*
      * If early loading microcode is supported, save this mc into
      * permanent memory. So it will be loaded early when a CPU is hot added
      * or resumes.
      */
-    save_mc_for_early(uci, new_mc, new_mc_size);
+	save_mc_for_early(uci, new_mc, new_mc_size);
 
-    pr_debug("CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
-             cpu, new_rev, uci->cpu_sig.rev);
+	pr_debug(
+		"CPU%d found a matching microcode update with version 0x%x (current=0x%x)\n",
+		cpu, new_rev, uci->cpu_sig.rev);
 
-    return ret;
+	return ret;
 }
 
 static bool is_blacklisted(unsigned int cpu)
 {
-    struct cpuinfo_x86 *c = &cpu_data(cpu);
+	struct cpuinfo_x86 *c = &cpu_data(cpu);
 
-    /*
+	/*
      * Late loading on model 79 with microcode revision less than 0x0b000021
      * and LLC size per core bigger than 2.5MB may result in a system hang.
      * This behavior is documented in item BDF90, #334165 (Intel Xeon
      * Processor E7-8800/4800 v4 Product Family).
      */
-    if (c->x86 == 6 &&
-            c->x86_model == INTEL_FAM6_BROADWELL_X &&
-            c->x86_stepping == 0x01 &&
-            llc_size_per_core > 2621440 &&
-            c->microcode < 0x0b000021) {
-        pr_err_once("Erratum BDF90: late loading with revision < 0x0b000021 (0x%x) disabled.\n", c->microcode);
-        pr_err_once("Please consider either early loading through initrd/built-in or a potential BIOS update.\n");
-        return true;
-    }
+	if (c->x86 == 6 && c->x86_model == INTEL_FAM6_BROADWELL_X &&
+	    c->x86_stepping == 0x01 && llc_size_per_core > 2621440 &&
+	    c->microcode < 0x0b000021) {
+		pr_err_once(
+			"Erratum BDF90: late loading with revision < 0x0b000021 (0x%x) disabled.\n",
+			c->microcode);
+		pr_err_once(
+			"Please consider either early loading through initrd/built-in or a potential BIOS update.\n");
+		return true;
+	}
 
-    return false;
+	return false;
 }
 
 static enum ucode_state request_microcode_fw(int cpu, struct device *device,
-        bool refresh_fw)
+					     bool refresh_fw)
 {
-    struct cpuinfo_x86 *c = &cpu_data(cpu);
-    const struct firmware *firmware;
-    struct iov_iter iter;
-    enum ucode_state ret;
-    struct kvec kvec;
-    char name[30];
+	struct cpuinfo_x86 *c = &cpu_data(cpu);
+	const struct firmware *firmware;
+	struct iov_iter iter;
+	enum ucode_state ret;
+	struct kvec kvec;
+	char name[30];
 
-    if (is_blacklisted(cpu))
-        return UCODE_NFOUND;
+	if (is_blacklisted(cpu))
+		return UCODE_NFOUND;
 
-    sprintf(name, "intel-ucode/%02x-%02x-%02x",
-            c->x86, c->x86_model, c->x86_stepping);
+	sprintf(name, "intel-ucode/%02x-%02x-%02x", c->x86, c->x86_model,
+		c->x86_stepping);
 
-    if (request_firmware_direct(&firmware, name, device)) {
-        pr_debug("data file %s load failed\n", name);
-        return UCODE_NFOUND;
-    }
+	if (request_firmware_direct(&firmware, name, device)) {
+		pr_debug("data file %s load failed\n", name);
+		return UCODE_NFOUND;
+	}
 
-    kvec.iov_base = (void *)firmware->data;
-    kvec.iov_len = firmware->size;
-    iov_iter_kvec(&iter, WRITE, &kvec, 1, firmware->size);
-    ret = generic_load_microcode(cpu, &iter);
+	kvec.iov_base = (void *)firmware->data;
+	kvec.iov_len = firmware->size;
+	iov_iter_kvec(&iter, WRITE, &kvec, 1, firmware->size);
+	ret = generic_load_microcode(cpu, &iter);
 
-    release_firmware(firmware);
+	release_firmware(firmware);
 
-    return ret;
+	return ret;
 }
 
-static enum ucode_state
-request_microcode_user(int cpu, const void __user *buf, size_t size)
+static enum ucode_state request_microcode_user(int cpu, const void __user *buf,
+					       size_t size)
 {
-    struct iov_iter iter;
-    struct iovec iov;
+	struct iov_iter iter;
+	struct iovec iov;
 
-    if (is_blacklisted(cpu))
-        return UCODE_NFOUND;
+	if (is_blacklisted(cpu))
+		return UCODE_NFOUND;
 
-    iov.iov_base = (void __user *)buf;
-    iov.iov_len = size;
-    iov_iter_init(&iter, WRITE, &iov, 1, size);
+	iov.iov_base = (void __user *)buf;
+	iov.iov_len = size;
+	iov_iter_init(&iter, WRITE, &iov, 1, size);
 
-    return generic_load_microcode(cpu, &iter);
+	return generic_load_microcode(cpu, &iter);
 }
 
 static struct microcode_ops microcode_intel_ops = {
-    .request_microcode_user		  = request_microcode_user,
-    .request_microcode_fw             = request_microcode_fw,
-    .collect_cpu_info                 = collect_cpu_info,
-    .apply_microcode                  = apply_microcode_intel,
+	.request_microcode_user = request_microcode_user,
+	.request_microcode_fw = request_microcode_fw,
+	.collect_cpu_info = collect_cpu_info,
+	.apply_microcode = apply_microcode_intel,
 };
 
 static int __init calc_llc_size_per_core(struct cpuinfo_x86 *c)
 {
-    u64 llc_size = c->x86_cache_size * 1024ULL;
+	u64 llc_size = c->x86_cache_size * 1024ULL;
 
-    do_div(llc_size, c->x86_max_cores);
+	do_div(llc_size, c->x86_max_cores);
 
-    return (int)llc_size;
+	return (int)llc_size;
 }
 
-struct microcode_ops * __init init_intel_microcode(void)
+struct microcode_ops *__init init_intel_microcode(void)
 {
-    struct cpuinfo_x86 *c = &boot_cpu_data;
+	struct cpuinfo_x86 *c = &boot_cpu_data;
 
-    if (c->x86_vendor != X86_VENDOR_INTEL || c->x86 < 6 ||
-            cpu_has(c, X86_FEATURE_IA64)) {
-        pr_err("Intel CPU family 0x%x not supported\n", c->x86);
-        return NULL;
-    }
+	if (c->x86_vendor != X86_VENDOR_INTEL || c->x86 < 6 ||
+	    cpu_has(c, X86_FEATURE_IA64)) {
+		pr_err("Intel CPU family 0x%x not supported\n", c->x86);
+		return NULL;
+	}
 
-    llc_size_per_core = calc_llc_size_per_core(c);
+	llc_size_per_core = calc_llc_size_per_core(c);
 
-    return &microcode_intel_ops;
+	return &microcode_intel_ops;
 }
