@@ -63,10 +63,10 @@
  * @__reserved:	Reserved member to preserve data alignment. Should be 0.
  */
 struct futex_waitv {
-	__u64 val;
-	__u64 uaddr;
-	__u32 flags;
-	__u32 __reserved;
+    __u64 val;
+    __u64 uaddr;
+    __u32 flags;
+    __u32 __reserved;
 };
 
 /**
@@ -76,9 +76,9 @@ struct futex_waitv {
  * @bitset:	Bitset for the optional bitmasked wakeup
  */
 struct futex_wait_block {
-	__u32 __user *uaddr;
-	__u32 val;
-	__u32 bitset;
+    __u32 __user *uaddr;
+    __u32 val;
+    __u32 bitset;
 };
 
 /*
@@ -96,7 +96,7 @@ struct futex_wait_block {
  * changed.
  */
 struct robust_list {
-	struct robust_list __user *next;
+    struct robust_list __user *next;
 };
 
 /*
@@ -108,30 +108,30 @@ struct robust_list {
  *  size, which glibc will detect)
  */
 struct robust_list_head {
-	/*
-	 * The head of the list. Points back to itself if empty:
-	 */
-	struct robust_list list;
+    /*
+     * The head of the list. Points back to itself if empty:
+     */
+    struct robust_list list;
 
-	/*
-	 * This relative offset is set by user-space, it gives the kernel
-	 * the relative position of the futex field to examine. This way
-	 * we keep userspace flexible, to freely shape its data-structure,
-	 * without hardcoding any particular offset into the kernel:
-	 */
-	long futex_offset;
+    /*
+     * This relative offset is set by user-space, it gives the kernel
+     * the relative position of the futex field to examine. This way
+     * we keep userspace flexible, to freely shape its data-structure,
+     * without hardcoding any particular offset into the kernel:
+     */
+    long futex_offset;
 
-	/*
-	 * The death of the thread may race with userspace setting
-	 * up a lock's links. So to handle this race, userspace first
-	 * sets this field to the address of the to-be-taken lock,
-	 * then does the lock acquire, and then adds itself to the
-	 * list, and then clears this field. Hence the kernel will
-	 * always have full knowledge of all locks that the thread
-	 * _might_ have taken. We check the owner TID in any case,
-	 * so only truly owned locks will be handled.
-	 */
-	struct robust_list __user *list_op_pending;
+    /*
+     * The death of the thread may race with userspace setting
+     * up a lock's links. So to handle this race, userspace first
+     * sets this field to the address of the to-be-taken lock,
+     * then does the lock acquire, and then adds itself to the
+     * list, and then clears this field. Hence the kernel will
+     * always have full knowledge of all locks that the thread
+     * _might_ have taken. We check the owner TID in any case,
+     * so only truly owned locks will be handled.
+     */
+    struct robust_list __user *list_op_pending;
 };
 
 /*

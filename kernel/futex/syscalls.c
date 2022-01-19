@@ -27,19 +27,19 @@
  * @len:	length of the list-head, as userspace expects
  */
 SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
-		size_t, len)
+                size_t, len)
 {
-	if (!futex_cmpxchg_enabled)
-		return -ENOSYS;
-	/*
-	 * The kernel knows only one size for now:
-	 */
-	if (unlikely(len != sizeof(*head)))
-		return -EINVAL;
+    if (!futex_cmpxchg_enabled)
+        return -ENOSYS;
+    /*
+     * The kernel knows only one size for now:
+     */
+    if (unlikely(len != sizeof(*head)))
+        return -EINVAL;
 
-	current->robust_list = head;
+    current->robust_list = head;
 
-	return 0;
+    return 0;
 }
 
 /**
@@ -49,133 +49,133 @@ SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
  * @len_ptr:	pointer to a length field, the kernel fills in the header size
  */
 SYSCALL_DEFINE3(get_robust_list, int, pid,
-		struct robust_list_head __user * __user *, head_ptr,
-		size_t __user *, len_ptr)
+                struct robust_list_head __user * __user *, head_ptr,
+                size_t __user *, len_ptr)
 {
-	struct robust_list_head __user *head;
-	unsigned long ret;
-	struct task_struct *p;
+    struct robust_list_head __user *head;
+    unsigned long ret;
+    struct task_struct *p;
 
-	if (!futex_cmpxchg_enabled)
-		return -ENOSYS;
+    if (!futex_cmpxchg_enabled)
+        return -ENOSYS;
 
-	rcu_read_lock();
+    rcu_read_lock();
 
-	ret = -ESRCH;
-	if (!pid)
-		p = current;
-	else {
-		p = find_task_by_vpid(pid);
-		if (!p)
-			goto err_unlock;
-	}
+    ret = -ESRCH;
+    if (!pid)
+        p = current;
+    else {
+        p = find_task_by_vpid(pid);
+        if (!p)
+            goto err_unlock;
+    }
 
-	ret = -EPERM;
-	if (!ptrace_may_access(p, PTRACE_MODE_READ_REALCREDS))
-		goto err_unlock;
+    ret = -EPERM;
+    if (!ptrace_may_access(p, PTRACE_MODE_READ_REALCREDS))
+        goto err_unlock;
 
-	head = p->robust_list;
-	rcu_read_unlock();
+    head = p->robust_list;
+    rcu_read_unlock();
 
-	if (put_user(sizeof(*head), len_ptr))
-		return -EFAULT;
-	return put_user(head, head_ptr);
+    if (put_user(sizeof(*head), len_ptr))
+        return -EFAULT;
+    return put_user(head, head_ptr);
 
 err_unlock:
-	rcu_read_unlock();
+    rcu_read_unlock();
 
-	return ret;
+    return ret;
 }
 
 long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
-		u32 __user *uaddr2, u32 val2, u32 val3)
+              u32 __user *uaddr2, u32 val2, u32 val3)
 {
-	int cmd = op & FUTEX_CMD_MASK;
-	unsigned int flags = 0;
+    int cmd = op & FUTEX_CMD_MASK;
+    unsigned int flags = 0;
 
-	if (!(op & FUTEX_PRIVATE_FLAG))
-		flags |= FLAGS_SHARED;
+    if (!(op & FUTEX_PRIVATE_FLAG))
+        flags |= FLAGS_SHARED;
 
-	if (op & FUTEX_CLOCK_REALTIME) {
-		flags |= FLAGS_CLOCKRT;
-		if (cmd != FUTEX_WAIT_BITSET && cmd != FUTEX_WAIT_REQUEUE_PI &&
-		    cmd != FUTEX_LOCK_PI2)
-			return -ENOSYS;
-	}
+    if (op & FUTEX_CLOCK_REALTIME) {
+        flags |= FLAGS_CLOCKRT;
+        if (cmd != FUTEX_WAIT_BITSET && cmd != FUTEX_WAIT_REQUEUE_PI &&
+                cmd != FUTEX_LOCK_PI2)
+            return -ENOSYS;
+    }
 
-	switch (cmd) {
-	case FUTEX_LOCK_PI:
-	case FUTEX_LOCK_PI2:
-	case FUTEX_UNLOCK_PI:
-	case FUTEX_TRYLOCK_PI:
-	case FUTEX_WAIT_REQUEUE_PI:
-	case FUTEX_CMP_REQUEUE_PI:
-		if (!futex_cmpxchg_enabled)
-			return -ENOSYS;
-	}
+    switch (cmd) {
+    case FUTEX_LOCK_PI:
+    case FUTEX_LOCK_PI2:
+    case FUTEX_UNLOCK_PI:
+    case FUTEX_TRYLOCK_PI:
+    case FUTEX_WAIT_REQUEUE_PI:
+    case FUTEX_CMP_REQUEUE_PI:
+        if (!futex_cmpxchg_enabled)
+            return -ENOSYS;
+    }
 
-	switch (cmd) {
-	case FUTEX_WAIT:
-		val3 = FUTEX_BITSET_MATCH_ANY;
-		fallthrough;
-	case FUTEX_WAIT_BITSET:
-		return futex_wait(uaddr, flags, val, timeout, val3);
-	case FUTEX_WAKE:
-		val3 = FUTEX_BITSET_MATCH_ANY;
-		fallthrough;
-	case FUTEX_WAKE_BITSET:
-		return futex_wake(uaddr, flags, val, val3);
-	case FUTEX_REQUEUE:
-		return futex_requeue(uaddr, flags, uaddr2, val, val2, NULL, 0);
-	case FUTEX_CMP_REQUEUE:
-		return futex_requeue(uaddr, flags, uaddr2, val, val2, &val3, 0);
-	case FUTEX_WAKE_OP:
-		return futex_wake_op(uaddr, flags, uaddr2, val, val2, val3);
-	case FUTEX_LOCK_PI:
-		flags |= FLAGS_CLOCKRT;
-		fallthrough;
-	case FUTEX_LOCK_PI2:
-		return futex_lock_pi(uaddr, flags, timeout, 0);
-	case FUTEX_UNLOCK_PI:
-		return futex_unlock_pi(uaddr, flags);
-	case FUTEX_TRYLOCK_PI:
-		return futex_lock_pi(uaddr, flags, NULL, 1);
-	case FUTEX_WAIT_REQUEUE_PI:
-		val3 = FUTEX_BITSET_MATCH_ANY;
-		return futex_wait_requeue_pi(uaddr, flags, val, timeout, val3,
-					     uaddr2);
-	case FUTEX_CMP_REQUEUE_PI:
-		return futex_requeue(uaddr, flags, uaddr2, val, val2, &val3, 1);
-	}
-	return -ENOSYS;
+    switch (cmd) {
+    case FUTEX_WAIT:
+        val3 = FUTEX_BITSET_MATCH_ANY;
+        fallthrough;
+    case FUTEX_WAIT_BITSET:
+        return futex_wait(uaddr, flags, val, timeout, val3);
+    case FUTEX_WAKE:
+        val3 = FUTEX_BITSET_MATCH_ANY;
+        fallthrough;
+    case FUTEX_WAKE_BITSET:
+        return futex_wake(uaddr, flags, val, val3);
+    case FUTEX_REQUEUE:
+        return futex_requeue(uaddr, flags, uaddr2, val, val2, NULL, 0);
+    case FUTEX_CMP_REQUEUE:
+        return futex_requeue(uaddr, flags, uaddr2, val, val2, &val3, 0);
+    case FUTEX_WAKE_OP:
+        return futex_wake_op(uaddr, flags, uaddr2, val, val2, val3);
+    case FUTEX_LOCK_PI:
+        flags |= FLAGS_CLOCKRT;
+        fallthrough;
+    case FUTEX_LOCK_PI2:
+        return futex_lock_pi(uaddr, flags, timeout, 0);
+    case FUTEX_UNLOCK_PI:
+        return futex_unlock_pi(uaddr, flags);
+    case FUTEX_TRYLOCK_PI:
+        return futex_lock_pi(uaddr, flags, NULL, 1);
+    case FUTEX_WAIT_REQUEUE_PI:
+        val3 = FUTEX_BITSET_MATCH_ANY;
+        return futex_wait_requeue_pi(uaddr, flags, val, timeout, val3,
+                                     uaddr2);
+    case FUTEX_CMP_REQUEUE_PI:
+        return futex_requeue(uaddr, flags, uaddr2, val, val2, &val3, 1);
+    }
+    return -ENOSYS;
 }
 
 static __always_inline bool futex_cmd_has_timeout(u32 cmd)
 {
-	switch (cmd) {
-	case FUTEX_WAIT:
-	case FUTEX_LOCK_PI:
-	case FUTEX_LOCK_PI2:
-	case FUTEX_WAIT_BITSET:
-	case FUTEX_WAIT_REQUEUE_PI:
-	case FUTEX_WAIT_MULTIPLE:
-		return true;
-	}
-	return false;
+    switch (cmd) {
+    case FUTEX_WAIT:
+    case FUTEX_LOCK_PI:
+    case FUTEX_LOCK_PI2:
+    case FUTEX_WAIT_BITSET:
+    case FUTEX_WAIT_REQUEUE_PI:
+    case FUTEX_WAIT_MULTIPLE:
+        return true;
+    }
+    return false;
 }
 
 static __always_inline int
 futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
 {
-	if (!timespec64_valid(ts))
-		return -EINVAL;
+    if (!timespec64_valid(ts))
+        return -EINVAL;
 
-	*t = timespec64_to_ktime(*ts);
-	if (cmd == FUTEX_WAIT || cmd == FUTEX_WAIT_MULTIPLE)
-		*t = ktime_add_safe(ktime_get(), *t);
-	else if (cmd != FUTEX_LOCK_PI && !(op & FUTEX_CLOCK_REALTIME))
-		*t = timens_ktime_to_host(CLOCK_MONOTONIC, *t);
-	return 0;
+    *t = timespec64_to_ktime(*ts);
+    if (cmd == FUTEX_WAIT || cmd == FUTEX_WAIT_MULTIPLE)
+        *t = ktime_add_safe(ktime_get(), *t);
+    else if (cmd != FUTEX_LOCK_PI && !(op & FUTEX_CLOCK_REALTIME))
+        *t = timens_ktime_to_host(CLOCK_MONOTONIC, *t);
+    return 0;
 }
 
 /**
@@ -189,84 +189,84 @@ futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
  */
 inline struct futex_vector *futex_read_wait_block(u32 __user *uaddr, u32 count)
 {
-	unsigned int i;
-	struct futex_vector *futexv;
-	struct futex_wait_block fwb;
-	struct futex_wait_block __user *entry =
-		(struct futex_wait_block __user *)uaddr;
+    unsigned int i;
+    struct futex_vector *futexv;
+    struct futex_wait_block fwb;
+    struct futex_wait_block __user *entry =
+        (struct futex_wait_block __user *)uaddr;
 
-	if (!count || count > FUTEX_WAITV_MAX)
-		return ERR_PTR(-EINVAL);
+    if (!count || count > FUTEX_WAITV_MAX)
+        return ERR_PTR(-EINVAL);
 
-	futexv = kcalloc(count, sizeof(*futexv), GFP_KERNEL);
-	if (!futexv)
-		return ERR_PTR(-ENOMEM);
+    futexv = kcalloc(count, sizeof(*futexv), GFP_KERNEL);
+    if (!futexv)
+        return ERR_PTR(-ENOMEM);
 
-	for (i = 0; i < count; i++) {
-		if (copy_from_user(&fwb, &entry[i], sizeof(fwb))) {
-			kfree(futexv);
-			return ERR_PTR(-EFAULT);
-		}
+    for (i = 0; i < count; i++) {
+        if (copy_from_user(&fwb, &entry[i], sizeof(fwb))) {
+            kfree(futexv);
+            return ERR_PTR(-EFAULT);
+        }
 
-		futexv[i].w.flags = FUTEX_32;
-		futexv[i].w.val = fwb.val;
-		futexv[i].w.uaddr = (uintptr_t) (fwb.uaddr);
-		futexv[i].q = futex_q_init;
-	}
+        futexv[i].w.flags = FUTEX_32;
+        futexv[i].w.val = fwb.val;
+        futexv[i].w.uaddr = (uintptr_t) (fwb.uaddr);
+        futexv[i].q = futex_q_init;
+    }
 
-	return futexv;
+    return futexv;
 }
 
 int futex_wait_multiple(struct futex_vector *vs, unsigned int count,
-			struct hrtimer_sleeper *to);
+                        struct hrtimer_sleeper *to);
 
 int futex_opcode_31(ktime_t *abs_time, u32 __user *uaddr, int count)
 {
-	int ret;
-	struct futex_vector *vs;
-	struct hrtimer_sleeper *to = NULL, timeout;
+    int ret;
+    struct futex_vector *vs;
+    struct hrtimer_sleeper *to = NULL, timeout;
 
-	to = futex_setup_timer(abs_time, &timeout, 0, 0);
+    to = futex_setup_timer(abs_time, &timeout, 0, 0);
 
-	vs = futex_read_wait_block(uaddr, count);
+    vs = futex_read_wait_block(uaddr, count);
 
-	if (IS_ERR(vs))
-		return PTR_ERR(vs);
+    if (IS_ERR(vs))
+        return PTR_ERR(vs);
 
-	ret = futex_wait_multiple(vs, count, abs_time ? to : NULL);
-	kfree(vs);
+    ret = futex_wait_multiple(vs, count, abs_time ? to : NULL);
+    kfree(vs);
 
-	if (to) {
-		hrtimer_cancel(&to->timer);
-		destroy_hrtimer_on_stack(&to->timer);
-	}
+    if (to) {
+        hrtimer_cancel(&to->timer);
+        destroy_hrtimer_on_stack(&to->timer);
+    }
 
-	return ret;
+    return ret;
 }
 
 SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
-		const struct __kernel_timespec __user *, utime,
-		u32 __user *, uaddr2, u32, val3)
+                const struct __kernel_timespec __user *, utime,
+                u32 __user *, uaddr2, u32, val3)
 {
-	int ret, cmd = op & FUTEX_CMD_MASK;
-	ktime_t t, *tp = NULL;
-	struct timespec64 ts;
+    int ret, cmd = op & FUTEX_CMD_MASK;
+    ktime_t t, *tp = NULL;
+    struct timespec64 ts;
 
-	if (utime && futex_cmd_has_timeout(cmd)) {
-		if (unlikely(should_fail_futex(!(op & FUTEX_PRIVATE_FLAG))))
-			return -EFAULT;
-		if (get_timespec64(&ts, utime))
-			return -EFAULT;
-		ret = futex_init_timeout(cmd, op, &ts, &t);
-		if (ret)
-			return ret;
-		tp = &t;
-	}
+    if (utime && futex_cmd_has_timeout(cmd)) {
+        if (unlikely(should_fail_futex(!(op & FUTEX_PRIVATE_FLAG))))
+            return -EFAULT;
+        if (get_timespec64(&ts, utime))
+            return -EFAULT;
+        ret = futex_init_timeout(cmd, op, &ts, &t);
+        if (ret)
+            return ret;
+        tp = &t;
+    }
 
-	if (cmd == FUTEX_WAIT_MULTIPLE)
-		return futex_opcode_31(tp, uaddr, val);
+    if (cmd == FUTEX_WAIT_MULTIPLE)
+        return futex_opcode_31(tp, uaddr, val);
 
-	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
+    return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
 }
 
 /* Mask of available flags for each futex in futex_waitv list */
@@ -281,29 +281,29 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
  * Return: Error code on failure, 0 on success
  */
 static int futex_parse_waitv(struct futex_vector *futexv,
-			     struct futex_waitv __user *uwaitv,
-			     unsigned int nr_futexes)
+                             struct futex_waitv __user *uwaitv,
+                             unsigned int nr_futexes)
 {
-	struct futex_waitv aux;
-	unsigned int i;
+    struct futex_waitv aux;
+    unsigned int i;
 
-	for (i = 0; i < nr_futexes; i++) {
-		if (copy_from_user(&aux, &uwaitv[i], sizeof(aux)))
-			return -EFAULT;
+    for (i = 0; i < nr_futexes; i++) {
+        if (copy_from_user(&aux, &uwaitv[i], sizeof(aux)))
+            return -EFAULT;
 
-		if ((aux.flags & ~FUTEXV_WAITER_MASK) || aux.__reserved)
-			return -EINVAL;
+        if ((aux.flags & ~FUTEXV_WAITER_MASK) || aux.__reserved)
+            return -EINVAL;
 
-		if (!(aux.flags & FUTEX_32))
-			return -EINVAL;
+        if (!(aux.flags & FUTEX_32))
+            return -EINVAL;
 
-		futexv[i].w.flags = aux.flags;
-		futexv[i].w.val = aux.val;
-		futexv[i].w.uaddr = aux.uaddr;
-		futexv[i].q = futex_q_init;
-	}
+        futexv[i].w.flags = aux.flags;
+        futexv[i].w.val = aux.val;
+        futexv[i].w.uaddr = aux.uaddr;
+        futexv[i].q = futex_q_init;
+    }
 
-	return 0;
+    return 0;
 }
 
 /**
@@ -330,142 +330,142 @@ static int futex_parse_waitv(struct futex_vector *futexv,
  */
 
 SYSCALL_DEFINE5(futex_waitv, struct futex_waitv __user *, waiters,
-		unsigned int, nr_futexes, unsigned int, flags,
-		struct __kernel_timespec __user *, timeout, clockid_t, clockid)
+                unsigned int, nr_futexes, unsigned int, flags,
+                struct __kernel_timespec __user *, timeout, clockid_t, clockid)
 {
-	struct hrtimer_sleeper to;
-	struct futex_vector *futexv;
-	struct timespec64 ts;
-	ktime_t time;
-	int ret;
+    struct hrtimer_sleeper to;
+    struct futex_vector *futexv;
+    struct timespec64 ts;
+    ktime_t time;
+    int ret;
 
-	/* This syscall supports no flags for now */
-	if (flags)
-		return -EINVAL;
+    /* This syscall supports no flags for now */
+    if (flags)
+        return -EINVAL;
 
-	if (!nr_futexes || nr_futexes > FUTEX_WAITV_MAX || !waiters)
-		return -EINVAL;
+    if (!nr_futexes || nr_futexes > FUTEX_WAITV_MAX || !waiters)
+        return -EINVAL;
 
-	if (timeout) {
-		int flag_clkid = 0, flag_init = 0;
+    if (timeout) {
+        int flag_clkid = 0, flag_init = 0;
 
-		if (clockid == CLOCK_REALTIME) {
-			flag_clkid = FLAGS_CLOCKRT;
-			flag_init = FUTEX_CLOCK_REALTIME;
-		}
+        if (clockid == CLOCK_REALTIME) {
+            flag_clkid = FLAGS_CLOCKRT;
+            flag_init = FUTEX_CLOCK_REALTIME;
+        }
 
-		if (clockid != CLOCK_REALTIME && clockid != CLOCK_MONOTONIC)
-			return -EINVAL;
+        if (clockid != CLOCK_REALTIME && clockid != CLOCK_MONOTONIC)
+            return -EINVAL;
 
-		if (get_timespec64(&ts, timeout))
-			return -EFAULT;
+        if (get_timespec64(&ts, timeout))
+            return -EFAULT;
 
-		/*
-		 * Since there's no opcode for futex_waitv, use
-		 * FUTEX_WAIT_BITSET that uses absolute timeout as well
-		 */
-		ret = futex_init_timeout(FUTEX_WAIT_BITSET, flag_init, &ts, &time);
-		if (ret)
-			return ret;
+        /*
+         * Since there's no opcode for futex_waitv, use
+         * FUTEX_WAIT_BITSET that uses absolute timeout as well
+         */
+        ret = futex_init_timeout(FUTEX_WAIT_BITSET, flag_init, &ts, &time);
+        if (ret)
+            return ret;
 
-		futex_setup_timer(&time, &to, flag_clkid, 0);
-	}
+        futex_setup_timer(&time, &to, flag_clkid, 0);
+    }
 
-	futexv = kcalloc(nr_futexes, sizeof(*futexv), GFP_KERNEL);
-	if (!futexv)
-		return -ENOMEM;
+    futexv = kcalloc(nr_futexes, sizeof(*futexv), GFP_KERNEL);
+    if (!futexv)
+        return -ENOMEM;
 
-	ret = futex_parse_waitv(futexv, waiters, nr_futexes);
-	if (!ret)
-		ret = futex_wait_multiple(futexv, nr_futexes, timeout ? &to : NULL);
+    ret = futex_parse_waitv(futexv, waiters, nr_futexes);
+    if (!ret)
+        ret = futex_wait_multiple(futexv, nr_futexes, timeout ? &to : NULL);
 
-	if (timeout) {
-		hrtimer_cancel(&to.timer);
-		destroy_hrtimer_on_stack(&to.timer);
-	}
+    if (timeout) {
+        hrtimer_cancel(&to.timer);
+        destroy_hrtimer_on_stack(&to.timer);
+    }
 
-	kfree(futexv);
-	return ret;
+    kfree(futexv);
+    return ret;
 }
 
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE2(set_robust_list,
-		struct compat_robust_list_head __user *, head,
-		compat_size_t, len)
+                       struct compat_robust_list_head __user *, head,
+                       compat_size_t, len)
 {
-	if (!futex_cmpxchg_enabled)
-		return -ENOSYS;
+    if (!futex_cmpxchg_enabled)
+        return -ENOSYS;
 
-	if (unlikely(len != sizeof(*head)))
-		return -EINVAL;
+    if (unlikely(len != sizeof(*head)))
+        return -EINVAL;
 
-	current->compat_robust_list = head;
+    current->compat_robust_list = head;
 
-	return 0;
+    return 0;
 }
 
 COMPAT_SYSCALL_DEFINE3(get_robust_list, int, pid,
-			compat_uptr_t __user *, head_ptr,
-			compat_size_t __user *, len_ptr)
+                       compat_uptr_t __user *, head_ptr,
+                       compat_size_t __user *, len_ptr)
 {
-	struct compat_robust_list_head __user *head;
-	unsigned long ret;
-	struct task_struct *p;
+    struct compat_robust_list_head __user *head;
+    unsigned long ret;
+    struct task_struct *p;
 
-	if (!futex_cmpxchg_enabled)
-		return -ENOSYS;
+    if (!futex_cmpxchg_enabled)
+        return -ENOSYS;
 
-	rcu_read_lock();
+    rcu_read_lock();
 
-	ret = -ESRCH;
-	if (!pid)
-		p = current;
-	else {
-		p = find_task_by_vpid(pid);
-		if (!p)
-			goto err_unlock;
-	}
+    ret = -ESRCH;
+    if (!pid)
+        p = current;
+    else {
+        p = find_task_by_vpid(pid);
+        if (!p)
+            goto err_unlock;
+    }
 
-	ret = -EPERM;
-	if (!ptrace_may_access(p, PTRACE_MODE_READ_REALCREDS))
-		goto err_unlock;
+    ret = -EPERM;
+    if (!ptrace_may_access(p, PTRACE_MODE_READ_REALCREDS))
+        goto err_unlock;
 
-	head = p->compat_robust_list;
-	rcu_read_unlock();
+    head = p->compat_robust_list;
+    rcu_read_unlock();
 
-	if (put_user(sizeof(*head), len_ptr))
-		return -EFAULT;
-	return put_user(ptr_to_compat(head), head_ptr);
+    if (put_user(sizeof(*head), len_ptr))
+        return -EFAULT;
+    return put_user(ptr_to_compat(head), head_ptr);
 
 err_unlock:
-	rcu_read_unlock();
+    rcu_read_unlock();
 
-	return ret;
+    return ret;
 }
 #endif /* CONFIG_COMPAT */
 
 #ifdef CONFIG_COMPAT_32BIT_TIME
 SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
-		const struct old_timespec32 __user *, utime, u32 __user *, uaddr2,
-		u32, val3)
+                const struct old_timespec32 __user *, utime, u32 __user *, uaddr2,
+                u32, val3)
 {
-	int ret, cmd = op & FUTEX_CMD_MASK;
-	ktime_t t, *tp = NULL;
-	struct timespec64 ts;
+    int ret, cmd = op & FUTEX_CMD_MASK;
+    ktime_t t, *tp = NULL;
+    struct timespec64 ts;
 
-	if (utime && futex_cmd_has_timeout(cmd)) {
-		if (get_old_timespec32(&ts, utime))
-			return -EFAULT;
-		ret = futex_init_timeout(cmd, op, &ts, &t);
-		if (ret)
-			return ret;
-		tp = &t;
-	}
+    if (utime && futex_cmd_has_timeout(cmd)) {
+        if (get_old_timespec32(&ts, utime))
+            return -EFAULT;
+        ret = futex_init_timeout(cmd, op, &ts, &t);
+        if (ret)
+            return ret;
+        tp = &t;
+    }
 
-	if (cmd == FUTEX_WAIT_MULTIPLE)
-		return futex_opcode_31(tp, uaddr, val);
+    if (cmd == FUTEX_WAIT_MULTIPLE)
+        return futex_opcode_31(tp, uaddr, val);
 
-	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
+    return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
 }
 #endif /* CONFIG_COMPAT_32BIT_TIME */
 
