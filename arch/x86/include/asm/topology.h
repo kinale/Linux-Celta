@@ -55,7 +55,7 @@ extern int early_cpu_to_node(int cpu);
 /* Same function but used if called before per_cpu areas are setup */
 static inline int early_cpu_to_node(int cpu)
 {
-	return early_per_cpu(x86_cpu_to_node_map, cpu);
+    return early_per_cpu(x86_cpu_to_node_map, cpu);
 }
 
 #endif /* !CONFIG_DEBUG_PER_CPU_MAPS */
@@ -69,7 +69,7 @@ extern const struct cpumask *cpumask_of_node(int node);
 /* Returns a pointer to the cpumask of CPUs on Node 'node'. */
 static inline const struct cpumask *cpumask_of_node(int node)
 {
-	return node_to_cpumask_map[node];
+    return node_to_cpumask_map[node];
 }
 #endif
 
@@ -84,7 +84,7 @@ extern int __node_distance(int, int);
 
 static inline int numa_node_id(void)
 {
-	return 0;
+    return 0;
 }
 /*
  * indicate override:
@@ -93,7 +93,7 @@ static inline int numa_node_id(void)
 
 static inline int early_cpu_to_node(int cpu)
 {
-	return 0;
+    return 0;
 }
 
 static inline void setup_node_to_cpumask_map(void) { }
@@ -125,14 +125,14 @@ extern unsigned int __max_logical_packages;
 
 static inline int topology_max_die_per_package(void)
 {
-	return __max_die_per_package;
+    return __max_die_per_package;
 }
 
 extern int __max_smt_threads;
 
 static inline int topology_max_smt_threads(void)
 {
-	return __max_smt_threads;
+    return __max_smt_threads;
 }
 
 int topology_update_package_map(unsigned int apicid, unsigned int cpu);
@@ -144,16 +144,32 @@ bool topology_smt_supported(void);
 #else
 #define topology_max_packages()			(1)
 static inline int
-topology_update_package_map(unsigned int apicid, unsigned int cpu) { return 0; }
+topology_update_package_map(unsigned int apicid, unsigned int cpu) {
+    return 0;
+}
 static inline int
-topology_update_die_map(unsigned int dieid, unsigned int cpu) { return 0; }
-static inline int topology_phys_to_logical_pkg(unsigned int pkg) { return 0; }
+topology_update_die_map(unsigned int dieid, unsigned int cpu) {
+    return 0;
+}
+static inline int topology_phys_to_logical_pkg(unsigned int pkg) {
+    return 0;
+}
 static inline int topology_phys_to_logical_die(unsigned int die,
-		unsigned int cpu) { return 0; }
-static inline int topology_max_die_per_package(void) { return 1; }
-static inline int topology_max_smt_threads(void) { return 1; }
-static inline bool topology_is_primary_thread(unsigned int cpu) { return true; }
-static inline bool topology_smt_supported(void) { return false; }
+        unsigned int cpu) {
+    return 0;
+}
+static inline int topology_max_die_per_package(void) {
+    return 1;
+}
+static inline int topology_max_smt_threads(void) {
+    return 1;
+}
+static inline bool topology_is_primary_thread(unsigned int cpu) {
+    return true;
+}
+static inline bool topology_smt_supported(void) {
+    return false;
+}
 #endif
 
 static inline void arch_fix_phys_package_id(int num, u32 slot)
@@ -189,7 +205,7 @@ static inline void sched_set_itmt_core_prio(int prio, int core_cpu)
 }
 static inline int sched_set_itmt_support(void)
 {
-	return 0;
+    return 0;
 }
 static inline void sched_clear_itmt_support(void)
 {
@@ -207,7 +223,7 @@ DECLARE_PER_CPU(unsigned long, arch_freq_scale);
 
 static inline long arch_scale_freq_capacity(int cpu)
 {
-	return per_cpu(arch_freq_scale, cpu);
+    return per_cpu(arch_freq_scale, cpu);
 }
 #define arch_scale_freq_capacity arch_scale_freq_capacity
 
