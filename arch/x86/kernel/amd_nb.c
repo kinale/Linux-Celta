@@ -15,18 +15,18 @@
 #include <linux/pci_ids.h>
 #include <asm/amd_nb.h>
 
-#define PCI_DEVICE_ID_AMD_17H_ROOT	0x1450
-#define PCI_DEVICE_ID_AMD_17H_M10H_ROOT	0x15d0
-#define PCI_DEVICE_ID_AMD_17H_M30H_ROOT	0x1480
-#define PCI_DEVICE_ID_AMD_17H_M60H_ROOT	0x1630
+#define PCI_DEVICE_ID_AMD_17H_ROOT 0x1450
+#define PCI_DEVICE_ID_AMD_17H_M10H_ROOT 0x15d0
+#define PCI_DEVICE_ID_AMD_17H_M30H_ROOT 0x1480
+#define PCI_DEVICE_ID_AMD_17H_M60H_ROOT 0x1630
 #define PCI_DEVICE_ID_AMD_ALDEBARAN_ROOT 0x14bb
-#define PCI_DEVICE_ID_AMD_17H_DF_F4	0x1464
+#define PCI_DEVICE_ID_AMD_17H_DF_F4 0x1464
 #define PCI_DEVICE_ID_AMD_17H_M10H_DF_F4 0x15ec
 #define PCI_DEVICE_ID_AMD_17H_M30H_DF_F4 0x1494
 #define PCI_DEVICE_ID_AMD_17H_M60H_DF_F4 0x144c
 #define PCI_DEVICE_ID_AMD_17H_M70H_DF_F4 0x1444
-#define PCI_DEVICE_ID_AMD_19H_DF_F4	0x1654
-#define PCI_DEVICE_ID_AMD_19H_M40H_ROOT	0x14b5
+#define PCI_DEVICE_ID_AMD_19H_DF_F4 0x1654
+#define PCI_DEVICE_ID_AMD_19H_M40H_ROOT 0x14b5
 #define PCI_DEVICE_ID_AMD_19H_M40H_DF_F4 0x167d
 #define PCI_DEVICE_ID_AMD_19H_M50H_DF_F4 0x166e
 #define PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F4 0x14d4
@@ -37,97 +37,98 @@ static DEFINE_MUTEX(smn_mutex);
 static u32 *flush_words;
 
 static const struct pci_device_id amd_root_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_ROOT) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_ROOT) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_ROOT) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_ROOT) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_ROOT) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_ROOT) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_ROOT) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_ROOT) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_ROOT) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_ROOT) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_ROOT) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_ROOT) },
+	{}
 };
 
-#define PCI_DEVICE_ID_AMD_CNB17H_F4     0x1704
+#define PCI_DEVICE_ID_AMD_CNB17H_F4 0x1704
 
 static const struct pci_device_id amd_nb_misc_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_K8_NB_MISC) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_10H_NB_MISC) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_NB_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M10H_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M30H_NB_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M60H_NB_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M70H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M50H_DF_F3) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F3) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_K8_NB_MISC) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_10H_NB_MISC) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_NB_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M10H_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M30H_NB_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M60H_NB_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M70H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M50H_DF_F3) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F3) },
+	{}
 };
 
 static const struct pci_device_id amd_nb_link_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_NB_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M30H_NB_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M60H_NB_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M70H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M50H_DF_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F4) },
-    { PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F4) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_NB_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M30H_NB_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_15H_M60H_NB_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_NB_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_16H_M30H_NB_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M10H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M30H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M60H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_17H_M70H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M40H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_19H_M50H_DF_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_CNB17H_F4) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_AMD, PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F4) },
+	{}
 };
 
 static const struct pci_device_id hygon_root_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_ROOT) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_ROOT) },
+	{}
 };
 
 static const struct pci_device_id hygon_nb_misc_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_DF_F3) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_DF_F3) },
+	{}
 };
 
 static const struct pci_device_id hygon_nb_link_ids[] = {
-    { PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_DF_F4) },
-    {}
+	{ PCI_DEVICE(PCI_VENDOR_ID_HYGON, PCI_DEVICE_ID_AMD_17H_DF_F4) },
+	{}
 };
 
 const struct amd_nb_bus_dev_range amd_nb_bus_dev_ranges[] __initconst = {
-    { 0x00, 0x18, 0x20 },
-    { 0xff, 0x00, 0x20 },
-    { 0xfe, 0x00, 0x20 },
-    { }
+	{ 0x00, 0x18, 0x20 },
+	{ 0xff, 0x00, 0x20 },
+	{ 0xfe, 0x00, 0x20 },
+	{}
 };
 
 static struct amd_northbridge_info amd_northbridges;
 
 u16 amd_nb_num(void)
 {
-    return amd_northbridges.num;
+	return amd_northbridges.num;
 }
 EXPORT_SYMBOL_GPL(amd_nb_num);
 
 bool amd_nb_has_feature(unsigned int feature)
 {
-    return ((amd_northbridges.flags & feature) == feature);
+	return ((amd_northbridges.flags & feature) == feature);
 }
 EXPORT_SYMBOL_GPL(amd_nb_has_feature);
 
 struct amd_northbridge *node_to_amd_nb(int node)
 {
-    return (node < amd_northbridges.num) ? &amd_northbridges.nb[node] : NULL;
+	return (node < amd_northbridges.num) ? &amd_northbridges.nb[node] :
+						     NULL;
 }
 EXPORT_SYMBOL_GPL(node_to_amd_nb);
 
@@ -137,15 +138,17 @@ EXPORT_SYMBOL_GPL(node_to_amd_nb);
  */
 u16 amd_gpu_node_start_id(void)
 {
-    return (amd_northbridges.nodemap) ?
-           amd_northbridges.nodemap->gpu_node_start_id : 0;
+	return (amd_northbridges.nodemap) ?
+		       amd_northbridges.nodemap->gpu_node_start_id :
+			     0;
 }
 EXPORT_SYMBOL_GPL(amd_gpu_node_start_id);
 
 u16 amd_cpu_node_count(void)
 {
-    return (amd_northbridges.nodemap) ?
-           amd_northbridges.nodemap->cpu_node_count : amd_northbridges.num;
+	return (amd_northbridges.nodemap) ?
+		       amd_northbridges.nodemap->cpu_node_count :
+			     amd_northbridges.num;
 }
 EXPORT_SYMBOL_GPL(amd_cpu_node_count);
 
@@ -154,13 +157,13 @@ EXPORT_SYMBOL_GPL(amd_cpu_node_count);
 
 static struct pci_dev *get_gpu_df_f1(void)
 {
-    return pci_get_device(PCI_VENDOR_ID_AMD,
-                          PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F1, NULL);
+	return pci_get_device(PCI_VENDOR_ID_AMD,
+			      PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F1, NULL);
 }
 
 /* DF18xF1 registers on Aldebaran GPU */
-#define REG_LOCAL_NODE_TYPE_MAP		0x144
-#define REG_RMT_NODE_TYPE_MAP		0x148
+#define REG_LOCAL_NODE_TYPE_MAP 0x144
+#define REG_RMT_NODE_TYPE_MAP 0x148
 
 /*
  * Newer AMD CPUs and GPUs whose data fabrics can be connected via custom xGMI
@@ -174,87 +177,86 @@ static struct pci_dev *get_gpu_df_f1(void)
  */
 static int amd_get_node_map(struct pci_dev *pdev)
 {
-    struct amd_node_map *nodemap;
-    u32 tmp;
+	struct amd_node_map *nodemap;
+	u32 tmp;
 
-    nodemap = kmalloc(sizeof(*nodemap), GFP_KERNEL);
-    if (!nodemap)
-        return -ENOMEM;
+	nodemap = kmalloc(sizeof(*nodemap), GFP_KERNEL);
+	if (!nodemap)
+		return -ENOMEM;
 
-    pci_read_config_dword(pdev, REG_LOCAL_NODE_TYPE_MAP, &tmp);
-    nodemap->gpu_node_start_id = tmp & 0xFFF;
+	pci_read_config_dword(pdev, REG_LOCAL_NODE_TYPE_MAP, &tmp);
+	nodemap->gpu_node_start_id = tmp & 0xFFF;
 
-    pci_read_config_dword(pdev, REG_RMT_NODE_TYPE_MAP, &tmp);
-    nodemap->cpu_node_count = tmp >> 16 & 0xFFF;
+	pci_read_config_dword(pdev, REG_RMT_NODE_TYPE_MAP, &tmp);
+	nodemap->cpu_node_count = tmp >> 16 & 0xFFF;
 
-    amd_northbridges.nodemap = nodemap;
-    return 0;
+	amd_northbridges.nodemap = nodemap;
+	return 0;
 }
 
 static struct pci_dev *next_northbridge(struct pci_dev *dev,
-                                        const struct pci_device_id *ids)
+					const struct pci_device_id *ids)
 {
-    do {
-        dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev);
-        if (!dev)
-            break;
-    } while (!pci_match_id(ids, dev));
-    return dev;
+	do {
+		dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev);
+		if (!dev)
+			break;
+	} while (!pci_match_id(ids, dev));
+	return dev;
 }
 
 static int __amd_smn_rw(u16 node, u32 address, u32 *value, bool write)
 {
-    struct pci_dev *root;
-    int err = -ENODEV;
+	struct pci_dev *root;
+	int err = -ENODEV;
 
-    if (node >= amd_northbridges.num)
-        goto out;
+	if (node >= amd_northbridges.num)
+		goto out;
 
-    root = node_to_amd_nb(node)->root;
-    if (!root)
-        goto out;
+	root = node_to_amd_nb(node)->root;
+	if (!root)
+		goto out;
 
-    mutex_lock(&smn_mutex);
+	mutex_lock(&smn_mutex);
 
-    err = pci_write_config_dword(root, 0x60, address);
-    if (err) {
-        pr_warn("Error programming SMN address 0x%x.\n", address);
-        goto out_unlock;
-    }
+	err = pci_write_config_dword(root, 0x60, address);
+	if (err) {
+		pr_warn("Error programming SMN address 0x%x.\n", address);
+		goto out_unlock;
+	}
 
-    err = (write ? pci_write_config_dword(root, 0x64, *value)
-           : pci_read_config_dword(root, 0x64, value));
-    if (err)
-        pr_warn("Error %s SMN address 0x%x.\n",
-                (write ? "writing to" : "reading from"), address);
+	err = (write ? pci_write_config_dword(root, 0x64, *value) :
+			     pci_read_config_dword(root, 0x64, value));
+	if (err)
+		pr_warn("Error %s SMN address 0x%x.\n",
+			(write ? "writing to" : "reading from"), address);
 
 out_unlock:
-    mutex_unlock(&smn_mutex);
+	mutex_unlock(&smn_mutex);
 
 out:
-    return err;
+	return err;
 }
 
 int amd_smn_read(u16 node, u32 address, u32 *value)
 {
-    return __amd_smn_rw(node, address, value, false);
+	return __amd_smn_rw(node, address, value, false);
 }
 EXPORT_SYMBOL_GPL(amd_smn_read);
 
 int amd_smn_write(u16 node, u32 address, u32 value)
 {
-    return __amd_smn_rw(node, address, &value, true);
+	return __amd_smn_rw(node, address, &value, true);
 }
 EXPORT_SYMBOL_GPL(amd_smn_write);
 
-
 struct pci_dev *get_root_devs(struct pci_dev *root,
-                              const struct pci_device_id *root_ids,
-                              u16 roots_per_misc)
+			      const struct pci_device_id *root_ids,
+			      u16 roots_per_misc)
 {
-    u16 j;
+	u16 j;
 
-    /*
+	/*
      * If there are more PCI root devices than data fabric/
      * system management network interfaces, then the (N)
      * PCI roots per DF/SMN interface are functionally the
@@ -263,129 +265,130 @@ struct pci_dev *get_root_devs(struct pci_dev *root,
      * the following DF/SMN interfaces get mapped to
      * correct PCI roots.
      */
-    for (j = 0; j < roots_per_misc; j++)
-        root = next_northbridge(root, root_ids);
+	for (j = 0; j < roots_per_misc; j++)
+		root = next_northbridge(root, root_ids);
 
-    return root;
+	return root;
 }
 
 int amd_cache_northbridges(void)
 {
-    const struct pci_device_id *misc_ids = amd_nb_misc_ids;
-    const struct pci_device_id *link_ids = amd_nb_link_ids;
-    const struct pci_device_id *root_ids = amd_root_ids;
-    struct pci_dev *root, *misc, *link, *dff1;
-    struct amd_northbridge *nb;
-    u16 roots_per_misc = 0, gpu_roots_per_misc = 0;
-    u16 misc_count = 0, gpu_misc_count = 0;
-    u16 root_count = 0, gpu_root_count = 0;
-    u16 i;
+	const struct pci_device_id *misc_ids = amd_nb_misc_ids;
+	const struct pci_device_id *link_ids = amd_nb_link_ids;
+	const struct pci_device_id *root_ids = amd_root_ids;
+	struct pci_dev *root, *misc, *link, *dff1;
+	struct amd_northbridge *nb;
+	u16 roots_per_misc = 0, gpu_roots_per_misc = 0;
+	u16 misc_count = 0, gpu_misc_count = 0;
+	u16 root_count = 0, gpu_root_count = 0;
+	u16 i;
 
-    if (amd_northbridges.num)
-        return 0;
+	if (amd_northbridges.num)
+		return 0;
 
-    if (boot_cpu_data.x86_vendor == X86_VENDOR_HYGON) {
-        root_ids = hygon_root_ids;
-        misc_ids = hygon_nb_misc_ids;
-        link_ids = hygon_nb_link_ids;
-    }
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_HYGON) {
+		root_ids = hygon_root_ids;
+		misc_ids = hygon_nb_misc_ids;
+		link_ids = hygon_nb_link_ids;
+	}
 
-    misc = NULL;
-    while ((misc = next_northbridge(misc, misc_ids)) != NULL) {
-        if (misc->device == PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F3)
-            gpu_misc_count++;
-        else
-            misc_count++;
-    }
+	misc = NULL;
+	while ((misc = next_northbridge(misc, misc_ids)) != NULL) {
+		if (misc->device == PCI_DEVICE_ID_AMD_ALDEBARAN_DF_F3)
+			gpu_misc_count++;
+		else
+			misc_count++;
+	}
 
-    if (!misc_count)
-        return -ENODEV;
+	if (!misc_count)
+		return -ENODEV;
 
-    root = NULL;
-    while ((root = next_northbridge(root, root_ids)) != NULL) {
-        if (root->device == PCI_DEVICE_ID_AMD_ALDEBARAN_ROOT)
-            gpu_root_count++;
-        else
-            root_count++;
-    }
+	root = NULL;
+	while ((root = next_northbridge(root, root_ids)) != NULL) {
+		if (root->device == PCI_DEVICE_ID_AMD_ALDEBARAN_ROOT)
+			gpu_root_count++;
+		else
+			root_count++;
+	}
 
-    if (root_count) {
-        roots_per_misc = root_count / misc_count;
+	if (root_count) {
+		roots_per_misc = root_count / misc_count;
 
-        /*
+		/*
          * There should be _exactly_ N roots for each DF/SMN
          * interface.
          */
-        if (!roots_per_misc || (root_count % roots_per_misc)) {
-            pr_info("Unsupported AMD DF/PCI configuration found\n");
-            return -ENODEV;
-        }
-    }
+		if (!roots_per_misc || (root_count % roots_per_misc)) {
+			pr_info("Unsupported AMD DF/PCI configuration found\n");
+			return -ENODEV;
+		}
+	}
 
-    /*
+	/*
      * The number of miscs, roots and roots_per_misc might vary on different
      * nodes of a heterogeneous system.
      * Calculate roots_per_misc accordingly in order to skip the redundant
      * roots and map the DF/SMN interfaces to correct PCI roots.
      */
-    if (gpu_root_count && gpu_misc_count) {
-        dff1 = get_gpu_df_f1();
-        if (!dff1) {
-            pr_debug("Failed to gather GPU node info.\n");
-            return -ENODEV;
-        }
+	if (gpu_root_count && gpu_misc_count) {
+		dff1 = get_gpu_df_f1();
+		if (!dff1) {
+			pr_debug("Failed to gather GPU node info.\n");
+			return -ENODEV;
+		}
 
-        if (amd_get_node_map(dff1))
-            return -ENOMEM;
+		if (amd_get_node_map(dff1))
+			return -ENOMEM;
 
-        gpu_roots_per_misc = gpu_root_count / gpu_misc_count;
-    }
+		gpu_roots_per_misc = gpu_root_count / gpu_misc_count;
+	}
 
-    amd_northbridges.num = misc_count + gpu_misc_count;
-    nb = kcalloc(amd_northbridges.num, sizeof(struct amd_northbridge), GFP_KERNEL);
-    if (!nb)
-        return -ENOMEM;
+	amd_northbridges.num = misc_count + gpu_misc_count;
+	nb = kcalloc(amd_northbridges.num, sizeof(struct amd_northbridge),
+		     GFP_KERNEL);
+	if (!nb)
+		return -ENOMEM;
 
-    amd_northbridges.nb = nb;
+	amd_northbridges.nb = nb;
 
-    link = misc = root = NULL;
-    for (i = 0; i < amd_northbridges.num; i++) {
-        u16 misc_roots = i < misc_count ? roots_per_misc : gpu_roots_per_misc;
-        node_to_amd_nb(i)->root = root =
-                                      get_root_devs(root, root_ids, misc_roots);
-        node_to_amd_nb(i)->misc = misc =
-                                      next_northbridge(misc, misc_ids);
-        node_to_amd_nb(i)->link = link =
-                                      next_northbridge(link, link_ids);
-    }
+	link = misc = root = NULL;
+	for (i = 0; i < amd_northbridges.num; i++) {
+		u16 misc_roots =
+			i < misc_count ? roots_per_misc : gpu_roots_per_misc;
+		node_to_amd_nb(i)->root = root =
+			get_root_devs(root, root_ids, misc_roots);
+		node_to_amd_nb(i)->misc = misc =
+			next_northbridge(misc, misc_ids);
+		node_to_amd_nb(i)->link = link =
+			next_northbridge(link, link_ids);
+	}
 
-    if (amd_gart_present())
-        amd_northbridges.flags |= AMD_NB_GART;
+	if (amd_gart_present())
+		amd_northbridges.flags |= AMD_NB_GART;
 
-    /*
+	/*
      * Check for L3 cache presence.
      */
-    if (!cpuid_edx(0x80000006))
-        return 0;
+	if (!cpuid_edx(0x80000006))
+		return 0;
 
-    /*
+	/*
      * Some CPU families support L3 Cache Index Disable. There are some
      * limitations because of E382 and E388 on family 0x10.
      */
-    if (boot_cpu_data.x86 == 0x10 &&
-            boot_cpu_data.x86_model >= 0x8 &&
-            (boot_cpu_data.x86_model > 0x9 ||
-             boot_cpu_data.x86_stepping >= 0x1))
-        amd_northbridges.flags |= AMD_NB_L3_INDEX_DISABLE;
+	if (boot_cpu_data.x86 == 0x10 && boot_cpu_data.x86_model >= 0x8 &&
+	    (boot_cpu_data.x86_model > 0x9 ||
+	     boot_cpu_data.x86_stepping >= 0x1))
+		amd_northbridges.flags |= AMD_NB_L3_INDEX_DISABLE;
 
-    if (boot_cpu_data.x86 == 0x15)
-        amd_northbridges.flags |= AMD_NB_L3_INDEX_DISABLE;
+	if (boot_cpu_data.x86 == 0x15)
+		amd_northbridges.flags |= AMD_NB_L3_INDEX_DISABLE;
 
-    /* L3 cache partitioning is supported on family 0x15 */
-    if (boot_cpu_data.x86 == 0x15)
-        amd_northbridges.flags |= AMD_NB_L3_PARTITIONING;
+	/* L3 cache partitioning is supported on family 0x15 */
+	if (boot_cpu_data.x86 == 0x15)
+		amd_northbridges.flags |= AMD_NB_L3_PARTITIONING;
 
-    return 0;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(amd_cache_northbridges);
 
@@ -395,163 +398,167 @@ EXPORT_SYMBOL_GPL(amd_cache_northbridges);
  */
 bool __init early_is_amd_nb(u32 device)
 {
-    const struct pci_device_id *misc_ids = amd_nb_misc_ids;
-    const struct pci_device_id *id;
-    u32 vendor = device & 0xffff;
+	const struct pci_device_id *misc_ids = amd_nb_misc_ids;
+	const struct pci_device_id *id;
+	u32 vendor = device & 0xffff;
 
-    if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD &&
-            boot_cpu_data.x86_vendor != X86_VENDOR_HYGON)
-        return false;
+	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD &&
+	    boot_cpu_data.x86_vendor != X86_VENDOR_HYGON)
+		return false;
 
-    if (boot_cpu_data.x86_vendor == X86_VENDOR_HYGON)
-        misc_ids = hygon_nb_misc_ids;
+	if (boot_cpu_data.x86_vendor == X86_VENDOR_HYGON)
+		misc_ids = hygon_nb_misc_ids;
 
-    device >>= 16;
-    for (id = misc_ids; id->vendor; id++)
-        if (vendor == id->vendor && device == id->device)
-            return true;
-    return false;
+	device >>= 16;
+	for (id = misc_ids; id->vendor; id++)
+		if (vendor == id->vendor && device == id->device)
+			return true;
+	return false;
 }
 
 struct resource *amd_get_mmconfig_range(struct resource *res)
 {
-    u32 address;
-    u64 base, msr;
-    unsigned int segn_busn_bits;
+	u32 address;
+	u64 base, msr;
+	unsigned int segn_busn_bits;
 
-    if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD &&
-            boot_cpu_data.x86_vendor != X86_VENDOR_HYGON)
-        return NULL;
+	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD &&
+	    boot_cpu_data.x86_vendor != X86_VENDOR_HYGON)
+		return NULL;
 
-    /* assume all cpus from fam10h have mmconfig */
-    if (boot_cpu_data.x86 < 0x10)
-        return NULL;
+	/* assume all cpus from fam10h have mmconfig */
+	if (boot_cpu_data.x86 < 0x10)
+		return NULL;
 
-    address = MSR_FAM10H_MMIO_CONF_BASE;
-    rdmsrl(address, msr);
+	address = MSR_FAM10H_MMIO_CONF_BASE;
+	rdmsrl(address, msr);
 
-    /* mmconfig is not enabled */
-    if (!(msr & FAM10H_MMIO_CONF_ENABLE))
-        return NULL;
+	/* mmconfig is not enabled */
+	if (!(msr & FAM10H_MMIO_CONF_ENABLE))
+		return NULL;
 
-    base = msr & (FAM10H_MMIO_CONF_BASE_MASK<<FAM10H_MMIO_CONF_BASE_SHIFT);
+	base = msr &
+	       (FAM10H_MMIO_CONF_BASE_MASK << FAM10H_MMIO_CONF_BASE_SHIFT);
 
-    segn_busn_bits = (msr >> FAM10H_MMIO_CONF_BUSRANGE_SHIFT) &
-                     FAM10H_MMIO_CONF_BUSRANGE_MASK;
+	segn_busn_bits = (msr >> FAM10H_MMIO_CONF_BUSRANGE_SHIFT) &
+			 FAM10H_MMIO_CONF_BUSRANGE_MASK;
 
-    res->flags = IORESOURCE_MEM;
-    res->start = base;
-    res->end = base + (1ULL<<(segn_busn_bits + 20)) - 1;
-    return res;
+	res->flags = IORESOURCE_MEM;
+	res->start = base;
+	res->end = base + (1ULL << (segn_busn_bits + 20)) - 1;
+	return res;
 }
 
 int amd_get_subcaches(int cpu)
 {
-    struct pci_dev *link = node_to_amd_nb(topology_die_id(cpu))->link;
-    unsigned int mask;
+	struct pci_dev *link = node_to_amd_nb(topology_die_id(cpu))->link;
+	unsigned int mask;
 
-    if (!amd_nb_has_feature(AMD_NB_L3_PARTITIONING))
-        return 0;
+	if (!amd_nb_has_feature(AMD_NB_L3_PARTITIONING))
+		return 0;
 
-    pci_read_config_dword(link, 0x1d4, &mask);
+	pci_read_config_dword(link, 0x1d4, &mask);
 
-    return (mask >> (4 * cpu_data(cpu).cpu_core_id)) & 0xf;
+	return (mask >> (4 * cpu_data(cpu).cpu_core_id)) & 0xf;
 }
 
 int amd_set_subcaches(int cpu, unsigned long mask)
 {
-    static unsigned int reset, ban;
-    struct amd_northbridge *nb = node_to_amd_nb(topology_die_id(cpu));
-    unsigned int reg;
-    int cuid;
+	static unsigned int reset, ban;
+	struct amd_northbridge *nb = node_to_amd_nb(topology_die_id(cpu));
+	unsigned int reg;
+	int cuid;
 
-    if (!amd_nb_has_feature(AMD_NB_L3_PARTITIONING) || mask > 0xf)
-        return -EINVAL;
+	if (!amd_nb_has_feature(AMD_NB_L3_PARTITIONING) || mask > 0xf)
+		return -EINVAL;
 
-    /* if necessary, collect reset state of L3 partitioning and BAN mode */
-    if (reset == 0) {
-        pci_read_config_dword(nb->link, 0x1d4, &reset);
-        pci_read_config_dword(nb->misc, 0x1b8, &ban);
-        ban &= 0x180000;
-    }
+	/* if necessary, collect reset state of L3 partitioning and BAN mode */
+	if (reset == 0) {
+		pci_read_config_dword(nb->link, 0x1d4, &reset);
+		pci_read_config_dword(nb->misc, 0x1b8, &ban);
+		ban &= 0x180000;
+	}
 
-    /* deactivate BAN mode if any subcaches are to be disabled */
-    if (mask != 0xf) {
-        pci_read_config_dword(nb->misc, 0x1b8, &reg);
-        pci_write_config_dword(nb->misc, 0x1b8, reg & ~0x180000);
-    }
+	/* deactivate BAN mode if any subcaches are to be disabled */
+	if (mask != 0xf) {
+		pci_read_config_dword(nb->misc, 0x1b8, &reg);
+		pci_write_config_dword(nb->misc, 0x1b8, reg & ~0x180000);
+	}
 
-    cuid = cpu_data(cpu).cpu_core_id;
-    mask <<= 4 * cuid;
-    mask |= (0xf ^ (1 << cuid)) << 26;
+	cuid = cpu_data(cpu).cpu_core_id;
+	mask <<= 4 * cuid;
+	mask |= (0xf ^ (1 << cuid)) << 26;
 
-    pci_write_config_dword(nb->link, 0x1d4, mask);
+	pci_write_config_dword(nb->link, 0x1d4, mask);
 
-    /* reset BAN mode if L3 partitioning returned to reset state */
-    pci_read_config_dword(nb->link, 0x1d4, &reg);
-    if (reg == reset) {
-        pci_read_config_dword(nb->misc, 0x1b8, &reg);
-        reg &= ~0x180000;
-        pci_write_config_dword(nb->misc, 0x1b8, reg | ban);
-    }
+	/* reset BAN mode if L3 partitioning returned to reset state */
+	pci_read_config_dword(nb->link, 0x1d4, &reg);
+	if (reg == reset) {
+		pci_read_config_dword(nb->misc, 0x1b8, &reg);
+		reg &= ~0x180000;
+		pci_write_config_dword(nb->misc, 0x1b8, reg | ban);
+	}
 
-    return 0;
+	return 0;
 }
 
 static void amd_cache_gart(void)
 {
-    u16 i;
+	u16 i;
 
-    if (!amd_nb_has_feature(AMD_NB_GART))
-        return;
+	if (!amd_nb_has_feature(AMD_NB_GART))
+		return;
 
-    flush_words = kmalloc_array(amd_northbridges.num, sizeof(u32), GFP_KERNEL);
-    if (!flush_words) {
-        amd_northbridges.flags &= ~AMD_NB_GART;
-        pr_notice("Cannot initialize GART flush words, GART support disabled\n");
-        return;
-    }
+	flush_words =
+		kmalloc_array(amd_northbridges.num, sizeof(u32), GFP_KERNEL);
+	if (!flush_words) {
+		amd_northbridges.flags &= ~AMD_NB_GART;
+		pr_notice(
+			"Cannot initialize GART flush words, GART support disabled\n");
+		return;
+	}
 
-    for (i = 0; i != amd_northbridges.num; i++)
-        pci_read_config_dword(node_to_amd_nb(i)->misc, 0x9c, &flush_words[i]);
+	for (i = 0; i != amd_northbridges.num; i++)
+		pci_read_config_dword(node_to_amd_nb(i)->misc, 0x9c,
+				      &flush_words[i]);
 }
 
 void amd_flush_garts(void)
 {
-    int flushed, i;
-    unsigned long flags;
-    static DEFINE_SPINLOCK(gart_lock);
+	int flushed, i;
+	unsigned long flags;
+	static DEFINE_SPINLOCK(gart_lock);
 
-    if (!amd_nb_has_feature(AMD_NB_GART))
-        return;
+	if (!amd_nb_has_feature(AMD_NB_GART))
+		return;
 
-    /*
+	/*
      * Avoid races between AGP and IOMMU. In theory it's not needed
      * but I'm not sure if the hardware won't lose flush requests
      * when another is pending. This whole thing is so expensive anyways
      * that it doesn't matter to serialize more. -AK
      */
-    spin_lock_irqsave(&gart_lock, flags);
-    flushed = 0;
-    for (i = 0; i < amd_northbridges.num; i++) {
-        pci_write_config_dword(node_to_amd_nb(i)->misc, 0x9c,
-                               flush_words[i] | 1);
-        flushed++;
-    }
-    for (i = 0; i < amd_northbridges.num; i++) {
-        u32 w;
-        /* Make sure the hardware actually executed the flush*/
-        for (;;) {
-            pci_read_config_dword(node_to_amd_nb(i)->misc,
-                                  0x9c, &w);
-            if (!(w & 1))
-                break;
-            cpu_relax();
-        }
-    }
-    spin_unlock_irqrestore(&gart_lock, flags);
-    if (!flushed)
-        pr_notice("nothing to flush?\n");
+	spin_lock_irqsave(&gart_lock, flags);
+	flushed = 0;
+	for (i = 0; i < amd_northbridges.num; i++) {
+		pci_write_config_dword(node_to_amd_nb(i)->misc, 0x9c,
+				       flush_words[i] | 1);
+		flushed++;
+	}
+	for (i = 0; i < amd_northbridges.num; i++) {
+		u32 w;
+		/* Make sure the hardware actually executed the flush*/
+		for (;;) {
+			pci_read_config_dword(node_to_amd_nb(i)->misc, 0x9c,
+					      &w);
+			if (!(w & 1))
+				break;
+			cpu_relax();
+		}
+	}
+	spin_unlock_irqrestore(&gart_lock, flags);
+	if (!flushed)
+		pr_notice("nothing to flush?\n");
 }
 EXPORT_SYMBOL_GPL(amd_flush_garts);
 
@@ -559,45 +566,45 @@ static void __fix_erratum_688(void *info)
 {
 #define MSR_AMD64_IC_CFG 0xC0011021
 
-    msr_set_bit(MSR_AMD64_IC_CFG, 3);
-    msr_set_bit(MSR_AMD64_IC_CFG, 14);
+	msr_set_bit(MSR_AMD64_IC_CFG, 3);
+	msr_set_bit(MSR_AMD64_IC_CFG, 14);
 }
 
 /* Apply erratum 688 fix so machines without a BIOS fix work. */
 static __init void fix_erratum_688(void)
 {
-    struct pci_dev *F4;
-    u32 val;
+	struct pci_dev *F4;
+	u32 val;
 
-    if (boot_cpu_data.x86 != 0x14)
-        return;
+	if (boot_cpu_data.x86 != 0x14)
+		return;
 
-    if (!amd_northbridges.num)
-        return;
+	if (!amd_northbridges.num)
+		return;
 
-    F4 = node_to_amd_nb(0)->link;
-    if (!F4)
-        return;
+	F4 = node_to_amd_nb(0)->link;
+	if (!F4)
+		return;
 
-    if (pci_read_config_dword(F4, 0x164, &val))
-        return;
+	if (pci_read_config_dword(F4, 0x164, &val))
+		return;
 
-    if (val & BIT(2))
-        return;
+	if (val & BIT(2))
+		return;
 
-    on_each_cpu(__fix_erratum_688, NULL, 0);
+	on_each_cpu(__fix_erratum_688, NULL, 0);
 
-    pr_info("x86/cpu/AMD: CPU erratum 688 worked around\n");
+	pr_info("x86/cpu/AMD: CPU erratum 688 worked around\n");
 }
 
 static __init int init_amd_nbs(void)
 {
-    amd_cache_northbridges();
-    amd_cache_gart();
+	amd_cache_northbridges();
+	amd_cache_gart();
 
-    fix_erratum_688();
+	fix_erratum_688();
 
-    return 0;
+	return 0;
 }
 
 /* This has to go after the PCI subsystem */
