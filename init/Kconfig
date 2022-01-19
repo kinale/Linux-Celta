@@ -2306,7 +2306,7 @@ config MODPROBE_PATH
 	  userspace can still load modules explicitly).
 
 config TRIM_UNUSED_KSYMS
-	bool "Trim unused exported kernel symbols" if EXPERT
+	bool "Trim unused exported kernel symbols"
 	depends on !COMPILE_TEST
 	help
 	  The kernel and some modules make many symbols available for
