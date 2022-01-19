@@ -155,7 +155,7 @@
 #define dhar_base(pvt)			((pvt)->dhar & 0xff000000)
 #define k8_dhar_offset(pvt)		(((pvt)->dhar & 0x0000ff00) << 16)
 
-					/* NOTE: Extra mask bit vs K8 */
+/* NOTE: Extra mask bit vs K8 */
 #define f10_dhar_offset(pvt)		(((pvt)->dhar & 0x0000ff80) << 16)
 
 #define DCT_CFG_SEL			0x10C
@@ -287,208 +287,208 @@
 #define UMC_SDP_INIT			BIT(31)
 
 enum amd_families {
-	K8_CPUS = 0,
-	F10_CPUS,
-	F15_CPUS,
-	F15_M30H_CPUS,
-	F15_M60H_CPUS,
-	F16_CPUS,
-	F16_M30H_CPUS,
-	F17_CPUS,
-	F17_M10H_CPUS,
-	F17_M30H_CPUS,
-	F17_M60H_CPUS,
-	F17_M70H_CPUS,
-	F19_CPUS,
-	ALDEBARAN_GPUS,
-	NUM_FAMILIES,
+    K8_CPUS = 0,
+    F10_CPUS,
+    F15_CPUS,
+    F15_M30H_CPUS,
+    F15_M60H_CPUS,
+    F16_CPUS,
+    F16_M30H_CPUS,
+    F17_CPUS,
+    F17_M10H_CPUS,
+    F17_M30H_CPUS,
+    F17_M60H_CPUS,
+    F17_M70H_CPUS,
+    F19_CPUS,
+    ALDEBARAN_GPUS,
+    NUM_FAMILIES,
 };
 
 /* Error injection control structure */
 struct error_injection {
-	u32	 section;
-	u32	 word;
-	u32	 bit_map;
+    u32	 section;
+    u32	 word;
+    u32	 bit_map;
 };
 
 /* low and high part of PCI config space regs */
 struct reg_pair {
-	u32 lo, hi;
+    u32 lo, hi;
 };
 
 /*
  * See F1x[1, 0][7C:40] DRAM Base/Limit Registers
  */
 struct dram_range {
-	struct reg_pair base;
-	struct reg_pair lim;
+    struct reg_pair base;
+    struct reg_pair lim;
 };
 
 /* A DCT chip selects collection */
 struct chip_select {
-	u32 csbases[NUM_CHIPSELECTS];
-	u32 csbases_sec[NUM_CHIPSELECTS];
-	u8 b_cnt;
+    u32 csbases[NUM_CHIPSELECTS];
+    u32 csbases_sec[NUM_CHIPSELECTS];
+    u8 b_cnt;
 
-	u32 csmasks[NUM_CHIPSELECTS];
-	u32 csmasks_sec[NUM_CHIPSELECTS];
-	u8 m_cnt;
+    u32 csmasks[NUM_CHIPSELECTS];
+    u32 csmasks_sec[NUM_CHIPSELECTS];
+    u8 m_cnt;
 };
 
 struct amd64_umc {
-	u32 dimm_cfg;		/* DIMM Configuration reg */
-	u32 umc_cfg;		/* Configuration reg */
-	u32 sdp_ctrl;		/* SDP Control reg */
-	u32 ecc_ctrl;		/* DRAM ECC Control reg */
-	u32 umc_cap_hi;		/* Capabilities High reg */
+    u32 dimm_cfg;		/* DIMM Configuration reg */
+    u32 umc_cfg;		/* Configuration reg */
+    u32 sdp_ctrl;		/* SDP Control reg */
+    u32 ecc_ctrl;		/* DRAM ECC Control reg */
+    u32 umc_cap_hi;		/* Capabilities High reg */
 };
 
 struct amd64_pvt {
-	struct low_ops *ops;
+    struct low_ops *ops;
 
-	/* pci_device handles which we utilize */
-	struct pci_dev *F0, *F1, *F2, *F3, *F6;
+    /* pci_device handles which we utilize */
+    struct pci_dev *F0, *F1, *F2, *F3, *F6;
 
-	u16 mc_node_id;		/* MC index of this MC node */
-	u8 fam;			/* CPU family */
-	u8 model;		/* ... model */
-	u8 stepping;		/* ... stepping */
+    u16 mc_node_id;		/* MC index of this MC node */
+    u8 fam;			/* CPU family */
+    u8 model;		/* ... model */
+    u8 stepping;		/* ... stepping */
 
-	int ext_model;		/* extended model value of this node */
-	int channel_count;
+    int ext_model;		/* extended model value of this node */
+    int channel_count;
 
-	/* Raw registers */
-	u32 dclr0;		/* DRAM Configuration Low DCT0 reg */
-	u32 dclr1;		/* DRAM Configuration Low DCT1 reg */
-	u32 dchr0;		/* DRAM Configuration High DCT0 reg */
-	u32 dchr1;		/* DRAM Configuration High DCT1 reg */
-	u32 nbcap;		/* North Bridge Capabilities */
-	u32 nbcfg;		/* F10 North Bridge Configuration */
-	u32 ext_nbcfg;		/* Extended F10 North Bridge Configuration */
-	u32 dhar;		/* DRAM Hoist reg */
-	u32 dbam0;		/* DRAM Base Address Mapping reg for DCT0 */
-	u32 dbam1;		/* DRAM Base Address Mapping reg for DCT1 */
+    /* Raw registers */
+    u32 dclr0;		/* DRAM Configuration Low DCT0 reg */
+    u32 dclr1;		/* DRAM Configuration Low DCT1 reg */
+    u32 dchr0;		/* DRAM Configuration High DCT0 reg */
+    u32 dchr1;		/* DRAM Configuration High DCT1 reg */
+    u32 nbcap;		/* North Bridge Capabilities */
+    u32 nbcfg;		/* F10 North Bridge Configuration */
+    u32 ext_nbcfg;		/* Extended F10 North Bridge Configuration */
+    u32 dhar;		/* DRAM Hoist reg */
+    u32 dbam0;		/* DRAM Base Address Mapping reg for DCT0 */
+    u32 dbam1;		/* DRAM Base Address Mapping reg for DCT1 */
 
-	/* one for each DCT/UMC */
-	struct chip_select csels[NUM_CONTROLLERS];
+    /* one for each DCT/UMC */
+    struct chip_select csels[NUM_CONTROLLERS];
 
-	/* DRAM base and limit pairs F1x[78,70,68,60,58,50,48,40] */
-	struct dram_range ranges[DRAM_RANGES];
+    /* DRAM base and limit pairs F1x[78,70,68,60,58,50,48,40] */
+    struct dram_range ranges[DRAM_RANGES];
 
-	u64 top_mem;		/* top of memory below 4GB */
-	u64 top_mem2;		/* top of memory above 4GB */
+    u64 top_mem;		/* top of memory below 4GB */
+    u64 top_mem2;		/* top of memory above 4GB */
 
-	u32 dct_sel_lo;		/* DRAM Controller Select Low */
-	u32 dct_sel_hi;		/* DRAM Controller Select High */
-	u32 online_spare;	/* On-Line spare Reg */
+    u32 dct_sel_lo;		/* DRAM Controller Select Low */
+    u32 dct_sel_hi;		/* DRAM Controller Select High */
+    u32 online_spare;	/* On-Line spare Reg */
 
-	/* x4, x8, or x16 syndromes in use */
-	u8 ecc_sym_sz;
+    /* x4, x8, or x16 syndromes in use */
+    u8 ecc_sym_sz;
 
-	/* place to store error injection parameters prior to issue */
-	struct error_injection injection;
+    /* place to store error injection parameters prior to issue */
+    struct error_injection injection;
 
-	/* cache the dram_type */
-	enum mem_type dram_type;
+    /* cache the dram_type */
+    enum mem_type dram_type;
 
-	struct amd64_umc *umc;	/* UMC registers */
+    struct amd64_umc *umc;	/* UMC registers */
 
-	struct amd64_family_type *fam_type;
+    struct amd64_family_type *fam_type;
 
-	bool is_gpu;
+    bool is_gpu;
 };
 
 enum err_codes {
-	DECODE_OK	=  0,
-	ERR_NODE	= -1,
-	ERR_CSROW	= -2,
-	ERR_CHANNEL	= -3,
-	ERR_SYND	= -4,
-	ERR_NORM_ADDR	= -5,
+    DECODE_OK	=  0,
+    ERR_NODE	= -1,
+    ERR_CSROW	= -2,
+    ERR_CHANNEL	= -3,
+    ERR_SYND	= -4,
+    ERR_NORM_ADDR	= -5,
 };
 
 struct err_info {
-	int err_code;
-	struct mem_ctl_info *src_mci;
-	int csrow;
-	int channel;
-	u16 syndrome;
-	u32 page;
-	u32 offset;
+    int err_code;
+    struct mem_ctl_info *src_mci;
+    int csrow;
+    int channel;
+    u16 syndrome;
+    u32 page;
+    u32 offset;
 };
 
 static inline u32 get_umc_base_gpu(u8 umc, u8 channel)
 {
-	/*
-	 * On CPUs, there is one channel per UMC, so UMC numbering equals
-	 * channel numbering. On GPUs, there are eight channels per UMC,
-	 * so the channel numbering is different from UMC numbering.
-	 *
-	 * On CPU nodes channels are selected in 6th nibble
-	 * UMC chY[3:0]= [(chY*2 + 1) : (chY*2)]50000;
-	 *
-	 * On GPU nodes channels are selected in 3rd nibble
-	 * HBM chX[3:0]= [Y  ]5X[3:0]000;
-	 * HBM chX[7:4]= [Y+1]5X[3:0]000
-	 */
-	umc *= 2;
+    /*
+     * On CPUs, there is one channel per UMC, so UMC numbering equals
+     * channel numbering. On GPUs, there are eight channels per UMC,
+     * so the channel numbering is different from UMC numbering.
+     *
+     * On CPU nodes channels are selected in 6th nibble
+     * UMC chY[3:0]= [(chY*2 + 1) : (chY*2)]50000;
+     *
+     * On GPU nodes channels are selected in 3rd nibble
+     * HBM chX[3:0]= [Y  ]5X[3:0]000;
+     * HBM chX[7:4]= [Y+1]5X[3:0]000
+     */
+    umc *= 2;
 
-	if (channel >= 4)
-		umc++;
+    if (channel >= 4)
+        umc++;
 
-	return 0x50000 + (umc << 20) + ((channel % 4) << 12);
+    return 0x50000 + (umc << 20) + ((channel % 4) << 12);
 }
 
 static inline u32 get_umc_base(u8 channel)
 {
-	/* chY: 0xY50000 */
-	return 0x50000 + (channel << 20);
+    /* chY: 0xY50000 */
+    return 0x50000 + (channel << 20);
 }
 
 static inline u64 get_dram_base(struct amd64_pvt *pvt, u8 i)
 {
-	u64 addr = ((u64)pvt->ranges[i].base.lo & 0xffff0000) << 8;
+    u64 addr = ((u64)pvt->ranges[i].base.lo & 0xffff0000) << 8;
 
-	if (boot_cpu_data.x86 == 0xf)
-		return addr;
+    if (boot_cpu_data.x86 == 0xf)
+        return addr;
 
-	return (((u64)pvt->ranges[i].base.hi & 0x000000ff) << 40) | addr;
+    return (((u64)pvt->ranges[i].base.hi & 0x000000ff) << 40) | addr;
 }
 
 static inline u64 get_dram_limit(struct amd64_pvt *pvt, u8 i)
 {
-	u64 lim = (((u64)pvt->ranges[i].lim.lo & 0xffff0000) << 8) | 0x00ffffff;
+    u64 lim = (((u64)pvt->ranges[i].lim.lo & 0xffff0000) << 8) | 0x00ffffff;
 
-	if (boot_cpu_data.x86 == 0xf)
-		return lim;
+    if (boot_cpu_data.x86 == 0xf)
+        return lim;
 
-	return (((u64)pvt->ranges[i].lim.hi & 0x000000ff) << 40) | lim;
+    return (((u64)pvt->ranges[i].lim.hi & 0x000000ff) << 40) | lim;
 }
 
 static inline u16 extract_syndrome(u64 status)
 {
-	return ((status >> 47) & 0xff) | ((status >> 16) & 0xff00);
+    return ((status >> 47) & 0xff) | ((status >> 16) & 0xff00);
 }
 
 static inline u8 dct_sel_interleave_addr(struct amd64_pvt *pvt)
 {
-	if (pvt->fam == 0x15 && pvt->model >= 0x30)
-		return (((pvt->dct_sel_hi >> 9) & 0x1) << 2) |
-			((pvt->dct_sel_lo >> 6) & 0x3);
+    if (pvt->fam == 0x15 && pvt->model >= 0x30)
+        return (((pvt->dct_sel_hi >> 9) & 0x1) << 2) |
+               ((pvt->dct_sel_lo >> 6) & 0x3);
 
-	return	((pvt)->dct_sel_lo >> 6) & 0x3;
+    return	((pvt)->dct_sel_lo >> 6) & 0x3;
 }
 /*
  * per-node ECC settings descriptor
  */
 struct ecc_settings {
-	u32 old_nbctl;
-	bool nbctl_valid;
+    u32 old_nbctl;
+    bool nbctl_valid;
 
-	struct flags {
-		unsigned long nb_mce_enable:1;
-		unsigned long nb_ecc_prev:1;
-	} flags;
+    struct flags {
+        unsigned long nb_mce_enable:1;
+        unsigned long nb_ecc_prev:1;
+    } flags;
 };
 
 /*
@@ -496,31 +496,31 @@ struct ecc_settings {
  * functions and per device encoding/decoding logic.
  */
 struct low_ops {
-	int  (*early_channel_count)	(struct amd64_pvt *pvt);
-	void (*map_sysaddr_to_csrow)	(struct mem_ctl_info *mci, u64 sys_addr,
-					 struct err_info *);
-	int  (*dbam_to_cs)		(struct amd64_pvt *pvt, u8 dct,
-					 unsigned cs_mode, int cs_mask_nr);
-	void (*prep_chip_select)	(struct amd64_pvt *pvt);
-	void (*get_base_mask)		(struct amd64_pvt *pvt);
-	void (*display_misc_regs)	(struct amd64_pvt *pvt);
-	void (*get_mc_regs)		(struct amd64_pvt *pvt);
-	int  (*populate_csrows)		(struct mem_ctl_info *mci);
-	void (*get_umc_err_info)	(struct mce *m, struct err_info *err);
+    int  (*early_channel_count)	(struct amd64_pvt *pvt);
+    void (*map_sysaddr_to_csrow)	(struct mem_ctl_info *mci, u64 sys_addr,
+                                     struct err_info *);
+    int  (*dbam_to_cs)		(struct amd64_pvt *pvt, u8 dct,
+                             unsigned cs_mode, int cs_mask_nr);
+    void (*prep_chip_select)	(struct amd64_pvt *pvt);
+    void (*get_base_mask)		(struct amd64_pvt *pvt);
+    void (*display_misc_regs)	(struct amd64_pvt *pvt);
+    void (*get_mc_regs)		(struct amd64_pvt *pvt);
+    int  (*populate_csrows)		(struct mem_ctl_info *mci);
+    void (*get_umc_err_info)	(struct mce *m, struct err_info *err);
 };
 
 struct amd64_family_type {
-	const char *ctl_name;
-	u16 f0_id, f1_id, f2_id, f6_id;
-	/* Maximum number of memory controllers per die/node. */
-	u8 max_mcs;
-	struct low_ops ops;
+    const char *ctl_name;
+    u16 f0_id, f1_id, f2_id, f6_id;
+    /* Maximum number of memory controllers per die/node. */
+    u8 max_mcs;
+    struct low_ops ops;
 };
 
 int __amd64_read_pci_cfg_dword(struct pci_dev *pdev, int offset,
-			       u32 *val, const char *func);
+                               u32 *val, const char *func);
 int __amd64_write_pci_cfg_dword(struct pci_dev *pdev, int offset,
-				u32 val, const char *func);
+                                u32 val, const char *func);
 
 #define amd64_read_pci_cfg(pdev, offset, val)	\
 	__amd64_read_pci_cfg_dword(pdev, offset, val, __func__)
@@ -533,41 +533,41 @@ int __amd64_write_pci_cfg_dword(struct pci_dev *pdev, int offset,
 /* Injection helpers */
 static inline void disable_caches(void *dummy)
 {
-	write_cr0(read_cr0() | X86_CR0_CD);
-	wbinvd();
+    write_cr0(read_cr0() | X86_CR0_CD);
+    wbinvd();
 }
 
 static inline void enable_caches(void *dummy)
 {
-	write_cr0(read_cr0() & ~X86_CR0_CD);
+    write_cr0(read_cr0() & ~X86_CR0_CD);
 }
 
 static inline u8 dram_intlv_en(struct amd64_pvt *pvt, unsigned int i)
 {
-	if (pvt->fam == 0x15 && pvt->model >= 0x30) {
-		u32 tmp;
-		amd64_read_pci_cfg(pvt->F1, DRAM_CONT_LIMIT, &tmp);
-		return (u8) tmp & 0xF;
-	}
-	return (u8) (pvt->ranges[i].base.lo >> 8) & 0x7;
+    if (pvt->fam == 0x15 && pvt->model >= 0x30) {
+        u32 tmp;
+        amd64_read_pci_cfg(pvt->F1, DRAM_CONT_LIMIT, &tmp);
+        return (u8) tmp & 0xF;
+    }
+    return (u8) (pvt->ranges[i].base.lo >> 8) & 0x7;
 }
 
 static inline u8 dhar_valid(struct amd64_pvt *pvt)
 {
-	if (pvt->fam == 0x15 && pvt->model >= 0x30) {
-		u32 tmp;
-		amd64_read_pci_cfg(pvt->F1, DRAM_CONT_BASE, &tmp);
-		return (tmp >> 1) & BIT(0);
-	}
-	return (pvt)->dhar & BIT(0);
+    if (pvt->fam == 0x15 && pvt->model >= 0x30) {
+        u32 tmp;
+        amd64_read_pci_cfg(pvt->F1, DRAM_CONT_BASE, &tmp);
+        return (tmp >> 1) & BIT(0);
+    }
+    return (pvt)->dhar & BIT(0);
 }
 
 static inline u32 dct_sel_baseaddr(struct amd64_pvt *pvt)
 {
-	if (pvt->fam == 0x15 && pvt->model >= 0x30) {
-		u32 tmp;
-		amd64_read_pci_cfg(pvt->F1, DRAM_CONT_BASE, &tmp);
-		return (tmp >> 11) & 0x1FFF;
-	}
-	return (pvt)->dct_sel_lo & 0xFFFFF800;
+    if (pvt->fam == 0x15 && pvt->model >= 0x30) {
+        u32 tmp;
+        amd64_read_pci_cfg(pvt->F1, DRAM_CONT_BASE, &tmp);
+        return (tmp >> 11) & 0x1FFF;
+    }
+    return (pvt)->dct_sel_lo & 0xFFFFF800;
 }

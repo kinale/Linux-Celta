@@ -7,9 +7,9 @@
 #include <linux/refcount.h>
 
 struct amd_nb_bus_dev_range {
-	u8 bus;
-	u8 dev_base;
-	u8 dev_limit;
+    u8 bus;
+    u8 dev_base;
+    u8 dev_limit;
 };
 
 extern const struct amd_nb_bus_dev_range amd_nb_bus_dev_ranges[];
@@ -26,58 +26,58 @@ extern int amd_smn_read(u16 node, u32 address, u32 *value);
 extern int amd_smn_write(u16 node, u32 address, u32 value);
 
 struct amd_l3_cache {
-	unsigned indices;
-	u8	 subcaches[4];
+    unsigned indices;
+    u8	 subcaches[4];
 };
 
 struct threshold_block {
-	unsigned int	 block;			/* Number within bank */
-	unsigned int	 bank;			/* MCA bank the block belongs to */
-	unsigned int	 cpu;			/* CPU which controls MCA bank */
-	u32		 address;		/* MSR address for the block */
-	u16		 interrupt_enable;	/* Enable/Disable APIC interrupt */
-	bool		 interrupt_capable;	/* Bank can generate an interrupt. */
+    unsigned int	 block;			/* Number within bank */
+    unsigned int	 bank;			/* MCA bank the block belongs to */
+    unsigned int	 cpu;			/* CPU which controls MCA bank */
+    u32		 address;		/* MSR address for the block */
+    u16		 interrupt_enable;	/* Enable/Disable APIC interrupt */
+    bool		 interrupt_capable;	/* Bank can generate an interrupt. */
 
-	u16		 threshold_limit;	/*
+    u16		 threshold_limit;	/*
 						 * Value upon which threshold
 						 * interrupt is generated.
 						 */
 
-	struct kobject	 kobj;			/* sysfs object */
-	struct list_head miscj;			/*
+    struct kobject	 kobj;			/* sysfs object */
+    struct list_head miscj;			/*
 						 * List of threshold blocks
 						 * within a bank.
 						 */
 };
 
 struct threshold_bank {
-	struct kobject		*kobj;
-	struct threshold_block	*blocks;
+    struct kobject		*kobj;
+    struct threshold_block	*blocks;
 
-	/* initialized to the number of CPUs on the node sharing this bank */
-	refcount_t		cpus;
-	unsigned int		shared;
+    /* initialized to the number of CPUs on the node sharing this bank */
+    refcount_t		cpus;
+    unsigned int		shared;
 };
 
 struct amd_northbridge {
-	struct pci_dev *root;
-	struct pci_dev *misc;
-	struct pci_dev *link;
-	struct amd_l3_cache l3_cache;
-	struct threshold_bank *bank4;
+    struct pci_dev *root;
+    struct pci_dev *misc;
+    struct pci_dev *link;
+    struct amd_l3_cache l3_cache;
+    struct threshold_bank *bank4;
 };
 
 /* heterogeneous system node type map variables */
 struct amd_node_map {
-	u16 gpu_node_start_id;
-	u16 cpu_node_count;
+    u16 gpu_node_start_id;
+    u16 cpu_node_count;
 };
 
 struct amd_northbridge_info {
-	u16 num;
-	u64 flags;
-	struct amd_northbridge *nb;
-	struct amd_node_map *nodemap;
+    u16 num;
+    u64 flags;
+    struct amd_northbridge *nb;
+    struct amd_node_map *nodemap;
 };
 
 #define AMD_NB_GART			BIT(0)
@@ -94,32 +94,32 @@ u16 amd_cpu_node_count(void);
 
 static inline u16 amd_pci_dev_to_node_id(struct pci_dev *pdev)
 {
-	struct pci_dev *misc;
-	int i;
+    struct pci_dev *misc;
+    int i;
 
-	for (i = 0; i != amd_nb_num(); i++) {
-		misc = node_to_amd_nb(i)->misc;
+    for (i = 0; i != amd_nb_num(); i++) {
+        misc = node_to_amd_nb(i)->misc;
 
-		if (pci_domain_nr(misc->bus) == pci_domain_nr(pdev->bus) &&
-		    PCI_SLOT(misc->devfn) == PCI_SLOT(pdev->devfn))
-			return i;
-	}
+        if (pci_domain_nr(misc->bus) == pci_domain_nr(pdev->bus) &&
+                PCI_SLOT(misc->devfn) == PCI_SLOT(pdev->devfn))
+            return i;
+    }
 
-	WARN(1, "Unable to find AMD Northbridge id for %s\n", pci_name(pdev));
-	return 0;
+    WARN(1, "Unable to find AMD Northbridge id for %s\n", pci_name(pdev));
+    return 0;
 }
 
 static inline bool amd_gart_present(void)
 {
-	if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD)
-		return false;
+    if (boot_cpu_data.x86_vendor != X86_VENDOR_AMD)
+        return false;
 
-	/* GART present only on Fam15h, upto model 0fh */
-	if (boot_cpu_data.x86 == 0xf || boot_cpu_data.x86 == 0x10 ||
-	    (boot_cpu_data.x86 == 0x15 && boot_cpu_data.x86_model < 0x10))
-		return true;
+    /* GART present only on Fam15h, upto model 0fh */
+    if (boot_cpu_data.x86 == 0xf || boot_cpu_data.x86 == 0x10 ||
+            (boot_cpu_data.x86 == 0x15 && boot_cpu_data.x86_model < 0x10))
+        return true;
 
-	return false;
+    return false;
 }
 
 #else
