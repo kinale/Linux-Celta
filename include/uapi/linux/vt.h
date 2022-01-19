@@ -22,19 +22,19 @@
  * Value MUST be at least 12 and must never be higher then 63
  */
 #define MAX_NR_CONSOLES CONFIG_NR_TTY_DEVICES	/* serial lines start above this */
-		/* Note: the ioctl VT_GETSTATE does not work for
-		   consoles 16 and higher (since it returns a short) */
+/* Note: the ioctl VT_GETSTATE does not work for
+   consoles 16 and higher (since it returns a short) */
 
 /* 0x56 is 'V', to avoid collision with termios and kd */
 
 #define VT_OPENQRY	0x5600	/* find available vt */
 
 struct vt_mode {
-	char mode;		/* vt mode */
-	char waitv;		/* if set, hang on writes if not active */
-	short relsig;		/* signal to raise on release req */
-	short acqsig;		/* signal to raise on acquisition */
-	short frsig;		/* unused (set to 0) */
+    char mode;		/* vt mode */
+    char waitv;		/* if set, hang on writes if not active */
+    short relsig;		/* signal to raise on release req */
+    short acqsig;		/* signal to raise on acquisition */
+    short frsig;		/* unused (set to 0) */
 };
 #define VT_GETMODE	0x5601	/* get mode of active vt */
 #define VT_SETMODE	0x5602	/* set mode of active vt */
@@ -43,9 +43,9 @@ struct vt_mode {
 #define		VT_ACKACQ	0x02	/* acknowledge switch */
 
 struct vt_stat {
-	unsigned short v_active;	/* active vt */
-	unsigned short v_signal;	/* signal to send */
-	unsigned short v_state;		/* vt bitmask */
+    unsigned short v_active;	/* active vt */
+    unsigned short v_signal;	/* signal to send */
+    unsigned short v_state;		/* vt bitmask */
 };
 #define VT_GETSTATE	0x5603	/* get global vt state info */
 #define VT_SENDSIG	0x5604	/* signal to send to bitmask of vts */
@@ -57,19 +57,19 @@ struct vt_stat {
 #define VT_DISALLOCATE	0x5608  /* free memory associated to vt */
 
 struct vt_sizes {
-	unsigned short v_rows;		/* number of rows */
-	unsigned short v_cols;		/* number of columns */
-	unsigned short v_scrollsize;	/* number of lines of scrollback */
+    unsigned short v_rows;		/* number of rows */
+    unsigned short v_cols;		/* number of columns */
+    unsigned short v_scrollsize;	/* number of lines of scrollback */
 };
 #define VT_RESIZE	0x5609	/* set kernel's idea of screensize */
 
 struct vt_consize {
-	unsigned short v_rows;	/* number of rows */
-	unsigned short v_cols;	/* number of columns */
-	unsigned short v_vlin;	/* number of pixel rows on screen */
-	unsigned short v_clin;	/* number of pixel rows per character */
-	unsigned short v_vcol;	/* number of pixel columns on screen */
-	unsigned short v_ccol;	/* number of pixel columns per character */
+    unsigned short v_rows;	/* number of rows */
+    unsigned short v_cols;	/* number of columns */
+    unsigned short v_vlin;	/* number of pixel rows on screen */
+    unsigned short v_clin;	/* number of pixel rows per character */
+    unsigned short v_vcol;	/* number of pixel columns on screen */
+    unsigned short v_ccol;	/* number of pixel columns per character */
 };
 #define VT_RESIZEX      0x560A  /* set kernel's idea of screensize + more */
 #define VT_LOCKSWITCH   0x560B  /* disallow vt switching */
@@ -77,22 +77,22 @@ struct vt_consize {
 #define VT_GETHIFONTMASK 0x560D  /* return hi font mask */
 
 struct vt_event {
-	unsigned int event;
+    unsigned int event;
 #define VT_EVENT_SWITCH		0x0001	/* Console switch */
 #define VT_EVENT_BLANK		0x0002	/* Screen blank */
 #define VT_EVENT_UNBLANK	0x0004	/* Screen unblank */
 #define VT_EVENT_RESIZE		0x0008	/* Resize display */
 #define VT_MAX_EVENT		0x000F
-	unsigned int oldev;		/* Old console */
-	unsigned int newev;		/* New console (if changing) */
-	unsigned int pad[4];		/* Padding for expansion */
+    unsigned int oldev;		/* Old console */
+    unsigned int newev;		/* New console (if changing) */
+    unsigned int pad[4];		/* Padding for expansion */
 };
 
 #define VT_WAITEVENT	0x560E	/* Wait for an event */
 
 struct vt_setactivate {
-	unsigned int console;
-	struct vt_mode mode;
+    unsigned int console;
+    struct vt_mode mode;
 };
 
 #define VT_SETACTIVATE	0x560F	/* Activate and set the mode of a console */
