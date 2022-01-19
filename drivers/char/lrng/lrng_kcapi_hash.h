@@ -13,7 +13,7 @@ u32 lrng_kcapi_hash_digestsize(void *hash);
 void lrng_kcapi_hash_dealloc(void *hash);
 int lrng_kcapi_hash_init(struct shash_desc *shash, void *hash);
 int lrng_kcapi_hash_update(struct shash_desc *shash, const u8 *inbuf,
-                           u32 inbuflen);
+			   u32 inbuflen);
 int lrng_kcapi_hash_final(struct shash_desc *shash, u8 *digest);
 void lrng_kcapi_hash_zero(struct shash_desc *shash);
 

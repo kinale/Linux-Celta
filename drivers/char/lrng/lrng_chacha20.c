@@ -18,10 +18,10 @@
 
 /******************************* ChaCha20 DRNG *******************************/
 
-#define CHACHA_BLOCK_WORDS	(CHACHA_BLOCK_SIZE / sizeof(u32))
+#define CHACHA_BLOCK_WORDS (CHACHA_BLOCK_SIZE / sizeof(u32))
 
 struct chacha20_state {
-    struct chacha20_block block;
+	struct chacha20_block block;
 };
 
 /*
@@ -39,34 +39,34 @@ struct chacha20_state chacha20;
  * the key is injected.
  */
 static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
-                                 __le32 *buf, u32 used_words)
+				 __le32 *buf, u32 used_words)
 {
-    struct chacha20_block *chacha20 = &chacha20_state->block;
-    u32 i;
-    __le32 tmp[CHACHA_BLOCK_WORDS];
+	struct chacha20_block *chacha20 = &chacha20_state->block;
+	u32 i;
+	__le32 tmp[CHACHA_BLOCK_WORDS];
 
-    BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA_BLOCK_SIZE);
-    BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
+	BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA_BLOCK_SIZE);
+	BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
 
-    if (used_words > CHACHA_KEY_SIZE_WORDS) {
-        chacha20_block(&chacha20->constants[0], (u8 *)tmp);
-        for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
-            chacha20->key.u[i] ^= le32_to_cpu(tmp[i]);
-        memzero_explicit(tmp, sizeof(tmp));
-    } else {
-        for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
-            chacha20->key.u[i] ^= le32_to_cpu(buf[i + used_words]);
-    }
+	if (used_words > CHACHA_KEY_SIZE_WORDS) {
+		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
+		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
+			chacha20->key.u[i] ^= le32_to_cpu(tmp[i]);
+		memzero_explicit(tmp, sizeof(tmp));
+	} else {
+		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
+			chacha20->key.u[i] ^= le32_to_cpu(buf[i + used_words]);
+	}
 
-    /* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
-    chacha20->nonce[0]++;
-    if (chacha20->nonce[0] == 0) {
-        chacha20->nonce[1]++;
-        if (chacha20->nonce[1] == 0)
-            chacha20->nonce[2]++;
-    }
+	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
+	chacha20->nonce[0]++;
+	if (chacha20->nonce[0] == 0) {
+		chacha20->nonce[1]++;
+		if (chacha20->nonce[1] == 0)
+			chacha20->nonce[2]++;
+	}
 
-    /* Leave counter untouched as it is start value is undefined in RFC */
+	/* Leave counter untouched as it is start value is undefined in RFC */
 }
 
 /*
@@ -78,23 +78,22 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
  */
 static int lrng_cc20_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
 {
-    struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
-    struct chacha20_block *chacha20 = &chacha20_state->block;
+	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
+	struct chacha20_block *chacha20 = &chacha20_state->block;
 
-    while (inbuflen) {
-        u32 i, todo = min_t(u32, inbuflen, CHACHA_KEY_SIZE);
+	while (inbuflen) {
+		u32 i, todo = min_t(u32, inbuflen, CHACHA_KEY_SIZE);
 
-        for (i = 0; i < todo; i++)
-            chacha20->key.b[i] ^= inbuf[i];
+		for (i = 0; i < todo; i++)
+			chacha20->key.b[i] ^= inbuf[i];
 
-        /* Break potential dependencies between the inbuf key blocks */
-        lrng_chacha20_update(chacha20_state, NULL,
-                             CHACHA_BLOCK_WORDS);
-        inbuf += todo;
-        inbuflen -= todo;
-    }
+		/* Break potential dependencies between the inbuf key blocks */
+		lrng_chacha20_update(chacha20_state, NULL, CHACHA_BLOCK_WORDS);
+		inbuf += todo;
+		inbuflen -= todo;
+	}
 
-    return 0;
+	return 0;
 }
 
 /*
@@ -112,37 +111,37 @@ static int lrng_cc20_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
  */
 static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 {
-    struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
-    struct chacha20_block *chacha20 = &chacha20_state->block;
-    __le32 aligned_buf[CHACHA_BLOCK_WORDS];
-    u32 ret = outbuflen, used = CHACHA_BLOCK_WORDS;
-    int zeroize_buf = 0;
+	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
+	struct chacha20_block *chacha20 = &chacha20_state->block;
+	__le32 aligned_buf[CHACHA_BLOCK_WORDS];
+	u32 ret = outbuflen, used = CHACHA_BLOCK_WORDS;
+	int zeroize_buf = 0;
 
-    while (outbuflen >= CHACHA_BLOCK_SIZE) {
-        chacha20_block(&chacha20->constants[0], outbuf);
-        outbuf += CHACHA_BLOCK_SIZE;
-        outbuflen -= CHACHA_BLOCK_SIZE;
-    }
+	while (outbuflen >= CHACHA_BLOCK_SIZE) {
+		chacha20_block(&chacha20->constants[0], outbuf);
+		outbuf += CHACHA_BLOCK_SIZE;
+		outbuflen -= CHACHA_BLOCK_SIZE;
+	}
 
-    if (outbuflen) {
-        chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
-        memcpy(outbuf, aligned_buf, outbuflen);
-        used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
-                sizeof(aligned_buf[0]));
-        zeroize_buf = 1;
-    }
+	if (outbuflen) {
+		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
+		memcpy(outbuf, aligned_buf, outbuflen);
+		used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
+			sizeof(aligned_buf[0]));
+		zeroize_buf = 1;
+	}
 
-    lrng_chacha20_update(chacha20_state, aligned_buf, used);
+	lrng_chacha20_update(chacha20_state, aligned_buf, used);
 
-    if (zeroize_buf)
-        memzero_explicit(aligned_buf, sizeof(aligned_buf));
+	if (zeroize_buf)
+		memzero_explicit(aligned_buf, sizeof(aligned_buf));
 
-    return ret;
+	return ret;
 }
 
 void lrng_cc20_init_state(struct chacha20_state *state)
 {
-    lrng_cc20_init_rfc7539(&state->block);
+	lrng_cc20_init_rfc7539(&state->block);
 }
 
 /*
@@ -150,39 +149,39 @@ void lrng_cc20_init_state(struct chacha20_state *state)
  */
 static void *lrng_cc20_drng_alloc(u32 sec_strength)
 {
-    struct chacha20_state *state = NULL;
+	struct chacha20_state *state = NULL;
 
-    if (sec_strength > CHACHA_KEY_SIZE) {
-        pr_err("Security strength of ChaCha20 DRNG (%u bits) lower than requested by LRNG (%u bits)\n",
-               CHACHA_KEY_SIZE * 8, sec_strength * 8);
-        return ERR_PTR(-EINVAL);
-    }
-    if (sec_strength < CHACHA_KEY_SIZE)
-        pr_warn("Security strength of ChaCha20 DRNG (%u bits) higher than requested by LRNG (%u bits)\n",
-                CHACHA_KEY_SIZE * 8, sec_strength * 8);
+	if (sec_strength > CHACHA_KEY_SIZE) {
+		pr_err("Security strength of ChaCha20 DRNG (%u bits) lower than requested by LRNG (%u bits)\n",
+		       CHACHA_KEY_SIZE * 8, sec_strength * 8);
+		return ERR_PTR(-EINVAL);
+	}
+	if (sec_strength < CHACHA_KEY_SIZE)
+		pr_warn("Security strength of ChaCha20 DRNG (%u bits) higher than requested by LRNG (%u bits)\n",
+			CHACHA_KEY_SIZE * 8, sec_strength * 8);
 
-    state = kmalloc(sizeof(struct chacha20_state), GFP_KERNEL);
-    if (!state)
-        return ERR_PTR(-ENOMEM);
-    pr_debug("memory for ChaCha20 core allocated\n");
+	state = kmalloc(sizeof(struct chacha20_state), GFP_KERNEL);
+	if (!state)
+		return ERR_PTR(-ENOMEM);
+	pr_debug("memory for ChaCha20 core allocated\n");
 
-    lrng_cc20_init_state(state);
+	lrng_cc20_init_state(state);
 
-    return state;
+	return state;
 }
 
 static void lrng_cc20_drng_dealloc(void *drng)
 {
-    struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
+	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
 
-    if (drng == &chacha20) {
-        memzero_explicit(chacha20_state, sizeof(*chacha20_state));
-        pr_debug("static ChaCha20 core zeroized\n");
-        return;
-    }
+	if (drng == &chacha20) {
+		memzero_explicit(chacha20_state, sizeof(*chacha20_state));
+		pr_debug("static ChaCha20 core zeroized\n");
+		return;
+	}
 
-    pr_debug("ChaCha20 core zeroized and freed\n");
-    kfree_sensitive(chacha20_state);
+	pr_debug("ChaCha20 core zeroized and freed\n");
+	kfree_sensitive(chacha20_state);
 }
 
 /******************************* Hash Operation *******************************/
@@ -193,40 +192,40 @@ static void lrng_cc20_drng_dealloc(void *drng)
 
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
-    return SHA256_DIGEST_SIZE;
+	return SHA256_DIGEST_SIZE;
 }
 
 static int lrng_cc20_hash_init(struct shash_desc *shash, void *hash)
 {
-    /*
+	/*
      * We do not need a TFM - we only need sufficient space for
      * struct sha256_state on the stack.
      */
-    sha256_init(shash_desc_ctx(shash));
-    return 0;
+	sha256_init(shash_desc_ctx(shash));
+	return 0;
 }
 
-static int lrng_cc20_hash_update(struct shash_desc *shash,
-                                 const u8 *inbuf, u32 inbuflen)
+static int lrng_cc20_hash_update(struct shash_desc *shash, const u8 *inbuf,
+				 u32 inbuflen)
 {
-    sha256_update(shash_desc_ctx(shash), inbuf, inbuflen);
-    return 0;
+	sha256_update(shash_desc_ctx(shash), inbuf, inbuflen);
+	return 0;
 }
 
 static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
 {
-    sha256_final(shash_desc_ctx(shash), digest);
-    return 0;
+	sha256_final(shash_desc_ctx(shash), digest);
+	return 0;
 }
 
 static const char *lrng_cc20_hash_name(void)
 {
-    return "SHA-256";
+	return "SHA-256";
 }
 
 static void lrng_cc20_hash_desc_zero(struct shash_desc *shash)
 {
-    memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha256_state));
+	memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha256_state));
 }
 
 #else /* CONFIG_CRYPTO_LIB_SHA256 */
@@ -240,59 +239,59 @@ static void lrng_cc20_hash_desc_zero(struct shash_desc *shash)
  */
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
-    return SHA1_DIGEST_SIZE;
+	return SHA1_DIGEST_SIZE;
 }
 
 static void lrng_sha1_block_fn(struct sha1_state *sctx, const u8 *src,
-                               int blocks)
+			       int blocks)
 {
-    u32 temp[SHA1_WORKSPACE_WORDS];
+	u32 temp[SHA1_WORKSPACE_WORDS];
 
-    while (blocks--) {
-        sha1_transform(sctx->state, src, temp);
-        src += SHA1_BLOCK_SIZE;
-    }
-    memzero_explicit(temp, sizeof(temp));
+	while (blocks--) {
+		sha1_transform(sctx->state, src, temp);
+		src += SHA1_BLOCK_SIZE;
+	}
+	memzero_explicit(temp, sizeof(temp));
 }
 
 static int lrng_cc20_hash_init(struct shash_desc *shash, void *hash)
 {
-    /*
+	/*
      * We do not need a TFM - we only need sufficient space for
      * struct sha1_state on the stack.
      */
-    sha1_base_init(shash);
-    return 0;
+	sha1_base_init(shash);
+	return 0;
 }
 
-static int lrng_cc20_hash_update(struct shash_desc *shash,
-                                 const u8 *inbuf, u32 inbuflen)
+static int lrng_cc20_hash_update(struct shash_desc *shash, const u8 *inbuf,
+				 u32 inbuflen)
 {
-    return sha1_base_do_update(shash, inbuf, inbuflen, lrng_sha1_block_fn);
+	return sha1_base_do_update(shash, inbuf, inbuflen, lrng_sha1_block_fn);
 }
 
 static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
 {
-    return sha1_base_do_finalize(shash, lrng_sha1_block_fn) ?:
-           sha1_base_finish(shash, digest);
+	return sha1_base_do_finalize(shash, lrng_sha1_block_fn) ?:
+			     sha1_base_finish(shash, digest);
 }
 
 static const char *lrng_cc20_hash_name(void)
 {
-    return "SHA-1";
+	return "SHA-1";
 }
 
 static void lrng_cc20_hash_desc_zero(struct shash_desc *shash)
 {
-    memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha1_state));
+	memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha1_state));
 }
 
 #endif /* CONFIG_CRYPTO_LIB_SHA256 */
 
 static void *lrng_cc20_hash_alloc(void)
 {
-    pr_info("Hash %s allocated\n", lrng_cc20_hash_name());
-    return NULL;
+	pr_info("Hash %s allocated\n", lrng_cc20_hash_name());
+	return NULL;
 }
 
 static void lrng_cc20_hash_dealloc(void *hash)
@@ -301,21 +300,21 @@ static void lrng_cc20_hash_dealloc(void *hash)
 
 static const char *lrng_cc20_drng_name(void)
 {
-    return "ChaCha20 DRNG";
+	return "ChaCha20 DRNG";
 }
 
 const struct lrng_crypto_cb lrng_cc20_crypto_cb = {
-    .lrng_drng_name			= lrng_cc20_drng_name,
-    .lrng_hash_name			= lrng_cc20_hash_name,
-    .lrng_drng_alloc		= lrng_cc20_drng_alloc,
-    .lrng_drng_dealloc		= lrng_cc20_drng_dealloc,
-    .lrng_drng_seed_helper		= lrng_cc20_drng_seed_helper,
-    .lrng_drng_generate_helper	= lrng_cc20_drng_generate_helper,
-    .lrng_hash_alloc		= lrng_cc20_hash_alloc,
-    .lrng_hash_dealloc		= lrng_cc20_hash_dealloc,
-    .lrng_hash_digestsize		= lrng_cc20_hash_digestsize,
-    .lrng_hash_init			= lrng_cc20_hash_init,
-    .lrng_hash_update		= lrng_cc20_hash_update,
-    .lrng_hash_final		= lrng_cc20_hash_final,
-    .lrng_hash_desc_zero		= lrng_cc20_hash_desc_zero,
+	.lrng_drng_name = lrng_cc20_drng_name,
+	.lrng_hash_name = lrng_cc20_hash_name,
+	.lrng_drng_alloc = lrng_cc20_drng_alloc,
+	.lrng_drng_dealloc = lrng_cc20_drng_dealloc,
+	.lrng_drng_seed_helper = lrng_cc20_drng_seed_helper,
+	.lrng_drng_generate_helper = lrng_cc20_drng_generate_helper,
+	.lrng_hash_alloc = lrng_cc20_hash_alloc,
+	.lrng_hash_dealloc = lrng_cc20_hash_dealloc,
+	.lrng_hash_digestsize = lrng_cc20_hash_digestsize,
+	.lrng_hash_init = lrng_cc20_hash_init,
+	.lrng_hash_update = lrng_cc20_hash_update,
+	.lrng_hash_final = lrng_cc20_hash_final,
+	.lrng_hash_desc_zero = lrng_cc20_hash_desc_zero,
 };

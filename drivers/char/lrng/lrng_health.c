@@ -14,73 +14,73 @@
 
 /* Stuck Test */
 struct lrng_stuck_test {
-    u32 last_time;		/* Stuck test: time of previous IRQ */
-    u32 last_delta;		/* Stuck test: delta of previous IRQ */
-    u32 last_delta2;	/* Stuck test: 2. time derivation of prev IRQ */
+	u32 last_time; /* Stuck test: time of previous IRQ */
+	u32 last_delta; /* Stuck test: delta of previous IRQ */
+	u32 last_delta2; /* Stuck test: 2. time derivation of prev IRQ */
 };
 
 /* Repetition Count Test */
 struct lrng_rct {
-    atomic_t rct_count;	/* Number of stuck values */
+	atomic_t rct_count; /* Number of stuck values */
 };
 
 /* Adaptive Proportion Test */
 struct lrng_apt {
-    /* Data window size */
-#define LRNG_APT_WINDOW_SIZE	512
-    /* LSB of time stamp to process */
-#define LRNG_APT_LSB		16
-#define LRNG_APT_WORD_MASK	(LRNG_APT_LSB - 1)
-    atomic_t apt_count;		/* APT counter */
-    atomic_t apt_base;		/* APT base reference */
+	/* Data window size */
+#define LRNG_APT_WINDOW_SIZE 512
+	/* LSB of time stamp to process */
+#define LRNG_APT_LSB 16
+#define LRNG_APT_WORD_MASK (LRNG_APT_LSB - 1)
+	atomic_t apt_count; /* APT counter */
+	atomic_t apt_base; /* APT base reference */
 
-    atomic_t apt_trigger;
-    bool apt_base_set;	/* Is APT base set? */
+	atomic_t apt_trigger;
+	bool apt_base_set; /* Is APT base set? */
 };
 
 /* The health test code must operate lock-less */
 struct lrng_health {
-    struct lrng_rct rct;
-    struct lrng_apt apt;
+	struct lrng_rct rct;
+	struct lrng_apt apt;
 
-    bool health_test_enabled;
+	bool health_test_enabled;
 
-    /* SP800-90B startup health tests */
-#define LRNG_SP80090B_STARTUP_SAMPLES  1024
-#define LRNG_SP80090B_STARTUP_BLOCKS   ((LRNG_SP80090B_STARTUP_SAMPLES + \
-					 LRNG_APT_WINDOW_SIZE - 1) /    \
-					LRNG_APT_WINDOW_SIZE)
-    bool sp80090b_startup_done;
-    atomic_t sp80090b_startup_blocks;
+	/* SP800-90B startup health tests */
+#define LRNG_SP80090B_STARTUP_SAMPLES 1024
+#define LRNG_SP80090B_STARTUP_BLOCKS                                           \
+	((LRNG_SP80090B_STARTUP_SAMPLES + LRNG_APT_WINDOW_SIZE - 1) /          \
+	 LRNG_APT_WINDOW_SIZE)
+	bool sp80090b_startup_done;
+	atomic_t sp80090b_startup_blocks;
 };
 
 static struct lrng_health lrng_health = {
-    .rct.rct_count = ATOMIC_INIT(0),
+	.rct.rct_count = ATOMIC_INIT(0),
 
-    .apt.apt_count = ATOMIC_INIT(0),
-    .apt.apt_base = ATOMIC_INIT(-1),
-    .apt.apt_trigger = ATOMIC_INIT(LRNG_APT_WINDOW_SIZE),
-    .apt.apt_base_set = false,
+	.apt.apt_count = ATOMIC_INIT(0),
+	.apt.apt_base = ATOMIC_INIT(-1),
+	.apt.apt_trigger = ATOMIC_INIT(LRNG_APT_WINDOW_SIZE),
+	.apt.apt_base_set = false,
 
-    .health_test_enabled = true,
+	.health_test_enabled = true,
 
-    .sp80090b_startup_blocks = ATOMIC_INIT(LRNG_SP80090B_STARTUP_BLOCKS),
-    .sp80090b_startup_done = false,
+	.sp80090b_startup_blocks = ATOMIC_INIT(LRNG_SP80090B_STARTUP_BLOCKS),
+	.sp80090b_startup_done = false,
 };
 
 static DEFINE_PER_CPU(struct lrng_stuck_test, lrng_stuck_test);
 
 static inline bool lrng_sp80090b_health_requested(void)
 {
-    /* Health tests are only requested in FIPS mode */
-    return fips_enabled;
+	/* Health tests are only requested in FIPS mode */
+	return fips_enabled;
 }
 
 static inline bool lrng_sp80090b_health_enabled(void)
 {
-    struct lrng_health *health = &lrng_health;
+	struct lrng_health *health = &lrng_health;
 
-    return lrng_sp80090b_health_requested() && health->health_test_enabled;
+	return lrng_sp80090b_health_requested() && health->health_test_enabled;
 }
 
 /***************************************************************************
@@ -104,23 +104,23 @@ static inline bool lrng_sp80090b_health_enabled(void)
  */
 static inline void lrng_sp80090b_startup(struct lrng_health *health)
 {
-    if (!health->sp80090b_startup_done &&
-            atomic_dec_and_test(&health->sp80090b_startup_blocks)) {
-        struct entropy_buf eb;
+	if (!health->sp80090b_startup_done &&
+	    atomic_dec_and_test(&health->sp80090b_startup_blocks)) {
+		struct entropy_buf eb;
 
-        health->sp80090b_startup_done = true;
-        pr_info("SP800-90B startup health tests completed\n");
-        memset(&eb, 0, sizeof(eb));
-        lrng_init_ops(&eb);
+		health->sp80090b_startup_done = true;
+		pr_info("SP800-90B startup health tests completed\n");
+		memset(&eb, 0, sizeof(eb));
+		lrng_init_ops(&eb);
 
-        /*
+		/*
          * Force a reseed of DRNGs to ensure they are seeded with
          * entropy that passed the SP800-90B health tests.
          * As the DRNG always will reseed before generating
          * random numbers, it does not need a reseed trigger.
          */
-        lrng_drng_force_reseed();
-    }
+		lrng_drng_force_reseed();
+	}
 }
 
 /*
@@ -128,10 +128,10 @@ static inline void lrng_sp80090b_startup(struct lrng_health *health)
  */
 static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
 {
-    /* Reset of LRNG and its entropy - NOTE: we are in atomic context */
-    lrng_reset();
+	/* Reset of LRNG and its entropy - NOTE: we are in atomic context */
+	lrng_reset();
 
-    /*
+	/*
      * Reset the SP800-90B startup test.
      *
      * NOTE SP800-90B section 4.3 bullet 4 does not specify what
@@ -139,8 +139,8 @@ static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
      * makes sense, i.e. restarting the health test and thus gating
      * the output function of /dev/random and getrandom(2).
      */
-    atomic_set(&health->sp80090b_startup_blocks,
-               LRNG_SP80090B_STARTUP_BLOCKS);
+	atomic_set(&health->sp80090b_startup_blocks,
+		   LRNG_SP80090B_STARTUP_BLOCKS);
 }
 
 /*
@@ -148,19 +148,19 @@ static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
  */
 static inline void lrng_sp80090b_runtime_failure(struct lrng_health *health)
 {
-    lrng_sp80090b_startup_failure(health);
-    health->sp80090b_startup_done = false;
+	lrng_sp80090b_startup_failure(health);
+	health->sp80090b_startup_done = false;
 }
 
 static inline void lrng_sp80090b_failure(struct lrng_health *health)
 {
-    if (health->sp80090b_startup_done) {
-        pr_err("SP800-90B runtime health test failure - invalidating all existing entropy and initiate SP800-90B startup\n");
-        lrng_sp80090b_runtime_failure(health);
-    } else {
-        pr_err("SP800-90B startup test failure - resetting\n");
-        lrng_sp80090b_startup_failure(health);
-    }
+	if (health->sp80090b_startup_done) {
+		pr_err("SP800-90B runtime health test failure - invalidating all existing entropy and initiate SP800-90B startup\n");
+		lrng_sp80090b_runtime_failure(health);
+	} else {
+		pr_err("SP800-90B startup test failure - resetting\n");
+		lrng_sp80090b_startup_failure(health);
+	}
 }
 
 /*
@@ -172,17 +172,18 @@ static inline void lrng_sp80090b_failure(struct lrng_health *health)
  */
 bool lrng_sp80090b_startup_complete(void)
 {
-    struct lrng_health *health = &lrng_health;
+	struct lrng_health *health = &lrng_health;
 
-    return (lrng_sp80090b_health_enabled()) ?
-           health->sp80090b_startup_done : true;
+	return (lrng_sp80090b_health_enabled()) ?
+		       health->sp80090b_startup_done :
+			     true;
 }
 
 bool lrng_sp80090b_compliant(void)
 {
-    struct lrng_health *health = &lrng_health;
+	struct lrng_health *health = &lrng_health;
 
-    return lrng_sp80090b_health_enabled() && health->sp80090b_startup_done;
+	return lrng_sp80090b_health_enabled() && health->sp80090b_startup_done;
 }
 
 /***************************************************************************
@@ -197,23 +198,23 @@ bool lrng_sp80090b_compliant(void)
  * @health [in] Reference to health state
  */
 static inline void lrng_apt_reset(struct lrng_health *health,
-                                  unsigned int time_masked)
+				  unsigned int time_masked)
 {
-    struct lrng_apt *apt = &health->apt;
+	struct lrng_apt *apt = &health->apt;
 
-    pr_debug("APT value %d for base %d\n",
-             atomic_read(&apt->apt_count), atomic_read(&apt->apt_base));
+	pr_debug("APT value %d for base %d\n", atomic_read(&apt->apt_count),
+		 atomic_read(&apt->apt_base));
 
-    /* Reset APT */
-    atomic_set(&apt->apt_count, 0);
-    atomic_set(&apt->apt_base, time_masked);
+	/* Reset APT */
+	atomic_set(&apt->apt_count, 0);
+	atomic_set(&apt->apt_base, time_masked);
 }
 
 static inline void lrng_apt_restart(struct lrng_health *health)
 {
-    struct lrng_apt *apt = &health->apt;
+	struct lrng_apt *apt = &health->apt;
 
-    atomic_set(&apt->apt_trigger, LRNG_APT_WINDOW_SIZE);
+	atomic_set(&apt->apt_trigger, LRNG_APT_WINDOW_SIZE);
 }
 
 /*
@@ -228,34 +229,34 @@ static inline void lrng_apt_restart(struct lrng_health *health)
  * @now_time [in] Time stamp to process
  */
 static inline void lrng_apt_insert(struct lrng_health *health,
-                                   unsigned int now_time)
+				   unsigned int now_time)
 {
-    struct lrng_apt *apt = &health->apt;
+	struct lrng_apt *apt = &health->apt;
 
-    if (!lrng_sp80090b_health_requested())
-        return;
+	if (!lrng_sp80090b_health_requested())
+		return;
 
-    now_time &= LRNG_APT_WORD_MASK;
+	now_time &= LRNG_APT_WORD_MASK;
 
-    /* Initialization of APT */
-    if (!apt->apt_base_set) {
-        atomic_set(&apt->apt_base, now_time);
-        apt->apt_base_set = true;
-        return;
-    }
+	/* Initialization of APT */
+	if (!apt->apt_base_set) {
+		atomic_set(&apt->apt_base, now_time);
+		apt->apt_base_set = true;
+		return;
+	}
 
-    if (now_time == (unsigned int)atomic_read(&apt->apt_base)) {
-        u32 apt_val = (u32)atomic_inc_return_relaxed(&apt->apt_count);
+	if (now_time == (unsigned int)atomic_read(&apt->apt_base)) {
+		u32 apt_val = (u32)atomic_inc_return_relaxed(&apt->apt_count);
 
-        if (apt_val >= CONFIG_LRNG_APT_CUTOFF)
-            lrng_sp80090b_failure(health);
-    }
+		if (apt_val >= CONFIG_LRNG_APT_CUTOFF)
+			lrng_sp80090b_failure(health);
+	}
 
-    if (atomic_dec_and_test(&apt->apt_trigger)) {
-        lrng_apt_restart(health);
-        lrng_apt_reset(health, now_time);
-        lrng_sp80090b_startup(health);
-    }
+	if (atomic_dec_and_test(&apt->apt_trigger)) {
+		lrng_apt_restart(health);
+		lrng_apt_reset(health, now_time);
+		lrng_sp80090b_startup(health);
+	}
 }
 
 /***************************************************************************
@@ -283,17 +284,17 @@ static inline void lrng_apt_insert(struct lrng_health *health,
  */
 static inline void lrng_rct(struct lrng_health *health, int stuck)
 {
-    struct lrng_rct *rct = &health->rct;
+	struct lrng_rct *rct = &health->rct;
 
-    if (!lrng_sp80090b_health_requested())
-        return;
+	if (!lrng_sp80090b_health_requested())
+		return;
 
-    if (stuck) {
-        u32 rct_count = atomic_add_return_relaxed(1, &rct->rct_count);
+	if (stuck) {
+		u32 rct_count = atomic_add_return_relaxed(1, &rct->rct_count);
 
-        pr_debug("RCT count: %u\n", rct_count);
+		pr_debug("RCT count: %u\n", rct_count);
 
-        /*
+		/*
          * The cutoff value is based on the following consideration:
          * alpha = 2^-30 as recommended in FIPS 140-2 IG 9.8.
          * In addition, we imply an entropy value H of 1 bit as this
@@ -304,20 +305,20 @@ static inline void lrng_rct(struct lrng_health *health, int stuck)
          * Hence we need to subtract one from the cutoff value as
          * calculated following SP800-90B.
          */
-        if (rct_count >= CONFIG_LRNG_RCT_CUTOFF) {
-            atomic_set(&rct->rct_count, 0);
+		if (rct_count >= CONFIG_LRNG_RCT_CUTOFF) {
+			atomic_set(&rct->rct_count, 0);
 
-            /*
+			/*
              * APT must start anew as we consider all previously
              * recorded data to contain no entropy.
              */
-            lrng_apt_restart(health);
+			lrng_apt_restart(health);
 
-            lrng_sp80090b_failure(health);
-        }
-    } else {
-        atomic_set(&rct->rct_count, 0);
-    }
+			lrng_sp80090b_failure(health);
+		}
+	} else {
+		atomic_set(&rct->rct_count, 0);
+	}
 }
 
 /***************************************************************************
@@ -334,11 +335,11 @@ static inline void lrng_rct(struct lrng_health *health, int stuck)
 
 static inline u32 lrng_delta(u32 prev, u32 next)
 {
-    /*
+	/*
      * Note that this (unsigned) subtraction does yield the correct value
      * in the wraparound-case, i.e. when next < prev.
      */
-    return (next - prev);
+	return (next - prev);
 }
 
 /*
@@ -351,18 +352,18 @@ static inline u32 lrng_delta(u32 prev, u32 next)
  */
 static inline int lrng_irq_stuck(struct lrng_stuck_test *stuck, u32 now_time)
 {
-    u32 delta = lrng_delta(stuck->last_time, now_time);
-    u32 delta2 = lrng_delta(stuck->last_delta, delta);
-    u32 delta3 = lrng_delta(stuck->last_delta2, delta2);
+	u32 delta = lrng_delta(stuck->last_time, now_time);
+	u32 delta2 = lrng_delta(stuck->last_delta, delta);
+	u32 delta3 = lrng_delta(stuck->last_delta2, delta2);
 
-    stuck->last_time = now_time;
-    stuck->last_delta = delta;
-    stuck->last_delta2 = delta2;
+	stuck->last_time = now_time;
+	stuck->last_delta = delta;
+	stuck->last_delta2 = delta2;
 
-    if (!delta || !delta2 || !delta3)
-        return 1;
+	if (!delta || !delta2 || !delta3)
+		return 1;
 
-    return 0;
+	return 0;
 }
 
 /***************************************************************************
@@ -374,12 +375,12 @@ static inline int lrng_irq_stuck(struct lrng_stuck_test *stuck, u32 now_time)
  */
 void lrng_health_disable(void)
 {
-    struct lrng_health *health = &lrng_health;
+	struct lrng_health *health = &lrng_health;
 
-    health->health_test_enabled = false;
+	health->health_test_enabled = false;
 
-    if (lrng_sp80090b_health_requested())
-        pr_warn("SP800-90B compliance requested but the Linux RNG is NOT SP800-90B compliant\n");
+	if (lrng_sp80090b_health_requested())
+		pr_warn("SP800-90B compliance requested but the Linux RNG is NOT SP800-90B compliant\n");
 }
 
 /*
@@ -389,22 +390,23 @@ void lrng_health_disable(void)
  */
 enum lrng_health_res lrng_health_test(u32 now_time)
 {
-    struct lrng_health *health = &lrng_health;
-    struct lrng_stuck_test *stuck_test = this_cpu_ptr(&lrng_stuck_test);
-    int stuck;
+	struct lrng_health *health = &lrng_health;
+	struct lrng_stuck_test *stuck_test = this_cpu_ptr(&lrng_stuck_test);
+	int stuck;
 
-    if (!health->health_test_enabled)
-        return lrng_health_pass;
+	if (!health->health_test_enabled)
+		return lrng_health_pass;
 
-    lrng_apt_insert(health, now_time);
+	lrng_apt_insert(health, now_time);
 
-    stuck = lrng_irq_stuck(stuck_test, now_time);
-    lrng_rct(health, stuck);
-    if (stuck) {
-        /* SP800-90B disallows using a failing health test time stamp */
-        return lrng_sp80090b_health_requested() ?
-               lrng_health_fail_drop : lrng_health_fail_use;
-    }
+	stuck = lrng_irq_stuck(stuck_test, now_time);
+	lrng_rct(health, stuck);
+	if (stuck) {
+		/* SP800-90B disallows using a failing health test time stamp */
+		return lrng_sp80090b_health_requested() ?
+			       lrng_health_fail_drop :
+				     lrng_health_fail_use;
+	}
 
-    return lrng_health_pass;
+	return lrng_health_pass;
 }
