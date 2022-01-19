@@ -107,48 +107,48 @@
 #define LACP_STATE_EXPIRED         0x80
 
 typedef struct ifbond {
-	__s32 bond_mode;
-	__s32 num_slaves;
-	__s32 miimon;
+    __s32 bond_mode;
+    __s32 num_slaves;
+    __s32 miimon;
 } ifbond;
 
 typedef struct ifslave {
-	__s32 slave_id; /* Used as an IN param to the BOND_SLAVE_INFO_QUERY ioctl */
-	char slave_name[IFNAMSIZ];
-	__s8 link;
-	__s8 state;
-	__u32  link_failure_count;
+    __s32 slave_id; /* Used as an IN param to the BOND_SLAVE_INFO_QUERY ioctl */
+    char slave_name[IFNAMSIZ];
+    __s8 link;
+    __s8 state;
+    __u32  link_failure_count;
 } ifslave;
 
 struct ad_info {
-	__u16 aggregator_id;
-	__u16 ports;
-	__u16 actor_key;
-	__u16 partner_key;
-	__u8 partner_system[ETH_ALEN];
+    __u16 aggregator_id;
+    __u16 ports;
+    __u16 actor_key;
+    __u16 partner_key;
+    __u8 partner_system[ETH_ALEN];
 };
 
 /* Embedded inside LINK_XSTATS_TYPE_BOND */
 enum {
-	BOND_XSTATS_UNSPEC,
-	BOND_XSTATS_3AD,
-	__BOND_XSTATS_MAX
+    BOND_XSTATS_UNSPEC,
+    BOND_XSTATS_3AD,
+    __BOND_XSTATS_MAX
 };
 #define BOND_XSTATS_MAX (__BOND_XSTATS_MAX - 1)
 
 /* Embedded inside BOND_XSTATS_3AD */
 enum {
-	BOND_3AD_STAT_LACPDU_RX,
-	BOND_3AD_STAT_LACPDU_TX,
-	BOND_3AD_STAT_LACPDU_UNKNOWN_RX,
-	BOND_3AD_STAT_LACPDU_ILLEGAL_RX,
-	BOND_3AD_STAT_MARKER_RX,
-	BOND_3AD_STAT_MARKER_TX,
-	BOND_3AD_STAT_MARKER_RESP_RX,
-	BOND_3AD_STAT_MARKER_RESP_TX,
-	BOND_3AD_STAT_MARKER_UNKNOWN_RX,
-	BOND_3AD_STAT_PAD,
-	__BOND_3AD_STAT_MAX
+    BOND_3AD_STAT_LACPDU_RX,
+    BOND_3AD_STAT_LACPDU_TX,
+    BOND_3AD_STAT_LACPDU_UNKNOWN_RX,
+    BOND_3AD_STAT_LACPDU_ILLEGAL_RX,
+    BOND_3AD_STAT_MARKER_RX,
+    BOND_3AD_STAT_MARKER_TX,
+    BOND_3AD_STAT_MARKER_RESP_RX,
+    BOND_3AD_STAT_MARKER_RESP_TX,
+    BOND_3AD_STAT_MARKER_UNKNOWN_RX,
+    BOND_3AD_STAT_PAD,
+    __BOND_3AD_STAT_MAX
 };
 #define BOND_3AD_STAT_MAX (__BOND_3AD_STAT_MAX - 1)
 

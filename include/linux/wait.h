@@ -28,15 +28,15 @@ int default_wake_function(struct wait_queue_entry *wq_entry, unsigned mode, int 
  * A single wait-queue entry structure:
  */
 struct wait_queue_entry {
-	unsigned int		flags;
-	void			*private;
-	wait_queue_func_t	func;
-	struct list_head	entry;
+    unsigned int		flags;
+    void			*private;
+    wait_queue_func_t	func;
+    struct list_head	entry;
 };
 
 struct wait_queue_head {
-	spinlock_t		lock;
-	struct list_head	head;
+    spinlock_t		lock;
+    struct list_head	head;
 };
 typedef struct wait_queue_head wait_queue_head_t;
 
@@ -81,17 +81,17 @@ extern void __init_waitqueue_head(struct wait_queue_head *wq_head, const char *n
 
 static inline void init_waitqueue_entry(struct wait_queue_entry *wq_entry, struct task_struct *p)
 {
-	wq_entry->flags		= 0;
-	wq_entry->private	= p;
-	wq_entry->func		= default_wake_function;
+    wq_entry->flags		= 0;
+    wq_entry->private	= p;
+    wq_entry->func		= default_wake_function;
 }
 
 static inline void
 init_waitqueue_func_entry(struct wait_queue_entry *wq_entry, wait_queue_func_t func)
 {
-	wq_entry->flags		= 0;
-	wq_entry->private	= NULL;
-	wq_entry->func		= func;
+    wq_entry->flags		= 0;
+    wq_entry->private	= NULL;
+    wq_entry->func		= func;
 }
 
 /**
@@ -126,7 +126,7 @@ init_waitqueue_func_entry(struct wait_queue_entry *wq_entry, wait_queue_func_t f
  */
 static inline int waitqueue_active(struct wait_queue_head *wq_head)
 {
-	return !list_empty(&wq_head->head);
+    return !list_empty(&wq_head->head);
 }
 
 /**
@@ -139,7 +139,7 @@ static inline int waitqueue_active(struct wait_queue_head *wq_head)
  */
 static inline bool wq_has_single_sleeper(struct wait_queue_head *wq_head)
 {
-	return list_is_singular(&wq_head->head);
+    return list_is_singular(&wq_head->head);
 }
 
 /**
@@ -152,15 +152,15 @@ static inline bool wq_has_single_sleeper(struct wait_queue_head *wq_head)
  */
 static inline bool wq_has_sleeper(struct wait_queue_head *wq_head)
 {
-	/*
-	 * We need to be sure we are in sync with the
-	 * add_wait_queue modifications to the wait queue.
-	 *
-	 * This memory barrier should be paired with one on the
-	 * waiting side.
-	 */
-	smp_mb();
-	return waitqueue_active(wq_head);
+    /*
+     * We need to be sure we are in sync with the
+     * add_wait_queue modifications to the wait queue.
+     *
+     * This memory barrier should be paired with one on the
+     * waiting side.
+     */
+    smp_mb();
+    return waitqueue_active(wq_head);
 }
 
 extern void add_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry);
@@ -171,15 +171,15 @@ extern void remove_wait_queue(struct wait_queue_head *wq_head, struct wait_queue
 
 static inline void __add_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	struct list_head *head = &wq_head->head;
-	struct wait_queue_entry *wq;
+    struct list_head *head = &wq_head->head;
+    struct wait_queue_entry *wq;
 
-	list_for_each_entry(wq, &wq_head->head, entry) {
-		if (!(wq->flags & WQ_FLAG_PRIORITY))
-			break;
-		head = &wq->entry;
-	}
-	list_add(&wq_entry->entry, head);
+    list_for_each_entry(wq, &wq_head->head, entry) {
+        if (!(wq->flags & WQ_FLAG_PRIORITY))
+            break;
+        head = &wq->entry;
+    }
+    list_add(&wq_entry->entry, head);
 }
 
 /*
@@ -188,32 +188,32 @@ static inline void __add_wait_queue(struct wait_queue_head *wq_head, struct wait
 static inline void
 __add_wait_queue_exclusive(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
-	__add_wait_queue(wq_head, wq_entry);
+    wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+    __add_wait_queue(wq_head, wq_entry);
 }
 
 static inline void __add_wait_queue_entry_tail(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	list_add_tail(&wq_entry->entry, &wq_head->head);
+    list_add_tail(&wq_entry->entry, &wq_head->head);
 }
 
 static inline void
 __add_wait_queue_entry_tail_exclusive(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
-	__add_wait_queue_entry_tail(wq_head, wq_entry);
+    wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+    __add_wait_queue_entry_tail(wq_head, wq_entry);
 }
 
 static inline void
 __remove_wait_queue(struct wait_queue_head *wq_head, struct wait_queue_entry *wq_entry)
 {
-	list_del(&wq_entry->entry);
+    list_del(&wq_entry->entry);
 }
 
 void __wake_up(struct wait_queue_head *wq_head, unsigned int mode, int nr, void *key);
 void __wake_up_locked_key(struct wait_queue_head *wq_head, unsigned int mode, void *key);
 void __wake_up_locked_key_bookmark(struct wait_queue_head *wq_head,
-		unsigned int mode, void *key, wait_queue_entry_t *bookmark);
+                                   unsigned int mode, void *key, wait_queue_entry_t *bookmark);
 void __wake_up_sync_key(struct wait_queue_head *wq_head, unsigned int mode, void *key);
 void __wake_up_locked_sync_key(struct wait_queue_head *wq_head, unsigned int mode, void *key);
 void __wake_up_locked(struct wait_queue_head *wq_head, unsigned int mode, int nr);
@@ -261,15 +261,15 @@ void __wake_up_pollfree(struct wait_queue_head *wq_head);
  */
 static inline void wake_up_pollfree(struct wait_queue_head *wq_head)
 {
-	/*
-	 * For performance reasons, we don't always take the queue lock here.
-	 * Therefore, we might race with someone removing the last entry from
-	 * the queue, and proceed while they still hold the queue lock.
-	 * However, rcu_read_lock() is required to be held in such cases, so we
-	 * can safely proceed with an RCU-delayed free.
-	 */
-	if (waitqueue_active(wq_head))
-		__wake_up_pollfree(wq_head);
+    /*
+     * For performance reasons, we don't always take the queue lock here.
+     * Therefore, we might race with someone removing the last entry from
+     * the queue, and proceed while they still hold the queue lock.
+     * However, rcu_read_lock() is required to be held in such cases, so we
+     * can safely proceed with an RCU-delayed free.
+     */
+    if (waitqueue_active(wq_head))
+        __wake_up_pollfree(wq_head);
 }
 
 #define ___wait_cond_timeout(condition)						\

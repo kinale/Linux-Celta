@@ -10,12 +10,12 @@
 /* REP NOP (PAUSE) is a good thing to insert into busy-wait loops. */
 static __always_inline void rep_nop(void)
 {
-	asm volatile("lfence" ::: "memory");
+    asm volatile("lfence" ::: "memory");
 }
 
 static __always_inline void cpu_relax(void)
 {
-	rep_nop();
+    rep_nop();
 }
 
 #endif /* __ASSEMBLY__ */
