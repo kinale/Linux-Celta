@@ -51,27 +51,27 @@
 
 void *jent_zalloc(unsigned int len)
 {
-	return kzalloc(len, GFP_KERNEL);
+    return kzalloc(len, GFP_KERNEL);
 }
 
 void jent_zfree(void *ptr)
 {
-	kfree_sensitive(ptr);
+    kfree_sensitive(ptr);
 }
 
 int jent_fips_enabled(void)
 {
-	return fips_enabled;
+    return fips_enabled;
 }
 
 void jent_panic(char *s)
 {
-	panic("%s", s);
+    panic("%s", s);
 }
 
 void jent_memcpy(void *dest, const void *src, unsigned int n)
 {
-	memcpy(dest, src, n);
+    memcpy(dest, src, n);
 }
 
 /*
@@ -85,19 +85,19 @@ void jent_memcpy(void *dest, const void *src, unsigned int n)
  */
 void jent_get_nstime(__u64 *out)
 {
-	__u64 tmp = 0;
+    __u64 tmp = 0;
 
-	tmp = random_get_entropy();
+    tmp = random_get_entropy();
 
-	/*
-	 * If random_get_entropy does not return a value, i.e. it is not
-	 * implemented for a given architecture, use a clock source.
-	 * hoping that there are timers we can work with.
-	 */
-	if (tmp == 0)
-		tmp = ktime_get_ns();
+    /*
+     * If random_get_entropy does not return a value, i.e. it is not
+     * implemented for a given architecture, use a clock source.
+     * hoping that there are timers we can work with.
+     */
+    if (tmp == 0)
+        tmp = ktime_get_ns();
 
-	*out = tmp;
+    *out = tmp;
 }
 
 /***************************************************************************
@@ -105,112 +105,112 @@ void jent_get_nstime(__u64 *out)
  ***************************************************************************/
 
 struct jitterentropy {
-	spinlock_t jent_lock;
-	struct rand_data *entropy_collector;
-	unsigned int reset_cnt;
+    spinlock_t jent_lock;
+    struct rand_data *entropy_collector;
+    unsigned int reset_cnt;
 };
 
 static int jent_kcapi_init(struct crypto_tfm *tfm)
 {
-	struct jitterentropy *rng = crypto_tfm_ctx(tfm);
-	int ret = 0;
+    struct jitterentropy *rng = crypto_tfm_ctx(tfm);
+    int ret = 0;
 
-	rng->entropy_collector = jent_entropy_collector_alloc(1, 0);
-	if (!rng->entropy_collector)
-		ret = -ENOMEM;
+    rng->entropy_collector = jent_entropy_collector_alloc(1, 0);
+    if (!rng->entropy_collector)
+        ret = -ENOMEM;
 
-	spin_lock_init(&rng->jent_lock);
-	return ret;
+    spin_lock_init(&rng->jent_lock);
+    return ret;
 }
 
 static void jent_kcapi_cleanup(struct crypto_tfm *tfm)
 {
-	struct jitterentropy *rng = crypto_tfm_ctx(tfm);
+    struct jitterentropy *rng = crypto_tfm_ctx(tfm);
 
-	spin_lock(&rng->jent_lock);
-	if (rng->entropy_collector)
-		jent_entropy_collector_free(rng->entropy_collector);
-	rng->entropy_collector = NULL;
-	spin_unlock(&rng->jent_lock);
+    spin_lock(&rng->jent_lock);
+    if (rng->entropy_collector)
+        jent_entropy_collector_free(rng->entropy_collector);
+    rng->entropy_collector = NULL;
+    spin_unlock(&rng->jent_lock);
 }
 
 static int jent_kcapi_random(struct crypto_rng *tfm,
-			     const u8 *src, unsigned int slen,
-			     u8 *rdata, unsigned int dlen)
+                             const u8 *src, unsigned int slen,
+                             u8 *rdata, unsigned int dlen)
 {
-	struct jitterentropy *rng = crypto_rng_ctx(tfm);
-	int ret = 0;
+    struct jitterentropy *rng = crypto_rng_ctx(tfm);
+    int ret = 0;
 
-	spin_lock(&rng->jent_lock);
+    spin_lock(&rng->jent_lock);
 
-	/* Return a permanent error in case we had too many resets in a row. */
-	if (rng->reset_cnt > (1<<10)) {
-		ret = -EFAULT;
-		goto out;
-	}
+    /* Return a permanent error in case we had too many resets in a row. */
+    if (rng->reset_cnt > (1<<10)) {
+        ret = -EFAULT;
+        goto out;
+    }
 
-	ret = jent_read_entropy(rng->entropy_collector, rdata, dlen);
+    ret = jent_read_entropy(rng->entropy_collector, rdata, dlen);
 
-	/* Reset RNG in case of health failures */
-	if (ret < -1) {
-		pr_warn_ratelimited("Reset Jitter RNG due to health test failure: %s failure\n",
-				    (ret == -2) ? "Repetition Count Test" :
-						  "Adaptive Proportion Test");
+    /* Reset RNG in case of health failures */
+    if (ret < -1) {
+        pr_warn_ratelimited("Reset Jitter RNG due to health test failure: %s failure\n",
+                            (ret == -2) ? "Repetition Count Test" :
+                            "Adaptive Proportion Test");
 
-		rng->reset_cnt++;
+        rng->reset_cnt++;
 
-		ret = -EAGAIN;
-	} else {
-		rng->reset_cnt = 0;
+        ret = -EAGAIN;
+    } else {
+        rng->reset_cnt = 0;
 
-		/* Convert the Jitter RNG error into a usable error code */
-		if (ret == -1)
-			ret = -EINVAL;
-	}
+        /* Convert the Jitter RNG error into a usable error code */
+        if (ret == -1)
+            ret = -EINVAL;
+    }
 
 out:
-	spin_unlock(&rng->jent_lock);
+    spin_unlock(&rng->jent_lock);
 
-	return ret;
+    return ret;
 }
 
 static int jent_kcapi_reset(struct crypto_rng *tfm,
-			    const u8 *seed, unsigned int slen)
+                            const u8 *seed, unsigned int slen)
 {
-	return 0;
+    return 0;
 }
 
 static struct rng_alg jent_alg = {
-	.generate		= jent_kcapi_random,
-	.seed			= jent_kcapi_reset,
-	.seedsize		= 0,
-	.base			= {
-		.cra_name               = "jitterentropy_rng",
-		.cra_driver_name        = "jitterentropy_rng",
-		.cra_priority           = 100,
-		.cra_ctxsize            = sizeof(struct jitterentropy),
-		.cra_module             = THIS_MODULE,
-		.cra_init               = jent_kcapi_init,
-		.cra_exit               = jent_kcapi_cleanup,
+    .generate		= jent_kcapi_random,
+    .seed			= jent_kcapi_reset,
+    .seedsize		= 0,
+    .base			= {
+        .cra_name               = "jitterentropy_rng",
+        .cra_driver_name        = "jitterentropy_rng",
+        .cra_priority           = 100,
+        .cra_ctxsize            = sizeof(struct jitterentropy),
+        .cra_module             = THIS_MODULE,
+        .cra_init               = jent_kcapi_init,
+        .cra_exit               = jent_kcapi_cleanup,
 
-	}
+    }
 };
 
 static int __init jent_mod_init(void)
 {
-	int ret = 0;
+    int ret = 0;
 
-	ret = jent_entropy_init();
-	if (ret) {
-		pr_info("jitterentropy: Initialization failed with host not compliant with requirements: %d\n", ret);
-		return -EFAULT;
-	}
-	return crypto_register_rng(&jent_alg);
+    ret = jent_entropy_init();
+    if (ret) {
+        pr_info("jitterentropy: Initialization failed with host not compliant with requirements: %d\n", ret);
+        return -EFAULT;
+    }
+    return crypto_register_rng(&jent_alg);
 }
 
 static void __exit jent_mod_exit(void)
 {
-	crypto_unregister_rng(&jent_alg);
+    crypto_unregister_rng(&jent_alg);
 }
 
 module_init(jent_mod_init);

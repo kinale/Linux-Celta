@@ -10,8 +10,8 @@ extern void jent_get_nstime(__u64 *out);
 struct rand_data;
 extern int jent_entropy_init(void);
 extern int jent_read_entropy(struct rand_data *ec, unsigned char *data,
-			     unsigned int len);
+                             unsigned int len);
 
 extern struct rand_data *jent_entropy_collector_alloc(unsigned int osr,
-						      unsigned int flags);
+        unsigned int flags);
 extern void jent_entropy_collector_free(struct rand_data *entropy_collector);

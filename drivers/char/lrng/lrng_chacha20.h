@@ -9,17 +9,17 @@
 
 /* State according to RFC 7539 section 2.3 */
 struct chacha20_block {
-	u32 constants[4];
-	union {
+    u32 constants[4];
+    union {
 #define CHACHA_KEY_SIZE_WORDS (CHACHA_KEY_SIZE / sizeof(u32))
-		u32 u[CHACHA_KEY_SIZE_WORDS];
-		u8  b[CHACHA_KEY_SIZE];
-	} key;
-	u32 counter;
-	u32 nonce[3];
+        u32 u[CHACHA_KEY_SIZE_WORDS];
+        u8  b[CHACHA_KEY_SIZE];
+    } key;
+    u32 counter;
+    u32 nonce[3];
 };
 
 static inline void lrng_cc20_init_rfc7539(struct chacha20_block *chacha20)
 {
-	chacha_init_consts(chacha20->constants);
+    chacha_init_consts(chacha20->constants);
 }

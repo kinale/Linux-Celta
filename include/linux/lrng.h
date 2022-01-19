@@ -54,20 +54,20 @@
  * 2. The hash' volatile state information is provided with *shash by caller.
  */
 struct lrng_crypto_cb {
-	const char *(*lrng_drng_name)(void);
-	const char *(*lrng_hash_name)(void);
-	void *(*lrng_drng_alloc)(u32 sec_strength);
-	void (*lrng_drng_dealloc)(void *drng);
-	int (*lrng_drng_seed_helper)(void *drng, const u8 *inbuf, u32 inbuflen);
-	int (*lrng_drng_generate_helper)(void *drng, u8 *outbuf, u32 outbuflen);
-	void *(*lrng_hash_alloc)(void);
-	void (*lrng_hash_dealloc)(void *hash);
-	u32 (*lrng_hash_digestsize)(void *hash);
-	int (*lrng_hash_init)(struct shash_desc *shash, void *hash);
-	int (*lrng_hash_update)(struct shash_desc *shash, const u8 *inbuf,
-				u32 inbuflen);
-	int (*lrng_hash_final)(struct shash_desc *shash, u8 *digest);
-	void (*lrng_hash_desc_zero)(struct shash_desc *shash);
+    const char *(*lrng_drng_name)(void);
+    const char *(*lrng_hash_name)(void);
+    void *(*lrng_drng_alloc)(u32 sec_strength);
+    void (*lrng_drng_dealloc)(void *drng);
+    int (*lrng_drng_seed_helper)(void *drng, const u8 *inbuf, u32 inbuflen);
+    int (*lrng_drng_generate_helper)(void *drng, u8 *outbuf, u32 outbuflen);
+    void *(*lrng_hash_alloc)(void);
+    void (*lrng_hash_dealloc)(void *hash);
+    u32 (*lrng_hash_digestsize)(void *hash);
+    int (*lrng_hash_init)(struct shash_desc *shash, void *hash);
+    int (*lrng_hash_update)(struct shash_desc *shash, const u8 *inbuf,
+                            u32 inbuflen);
+    int (*lrng_hash_final)(struct shash_desc *shash, u8 *digest);
+    void (*lrng_hash_desc_zero)(struct shash_desc *shash);
 };
 
 /* Register cryptographic backend */
@@ -75,7 +75,9 @@ struct lrng_crypto_cb {
 int lrng_set_drng_cb(const struct lrng_crypto_cb *cb);
 #else	/* CONFIG_LRNG_DRNG_SWITCH */
 static inline int
-lrng_set_drng_cb(const struct lrng_crypto_cb *cb) { return -EOPNOTSUPP; }
+lrng_set_drng_cb(const struct lrng_crypto_cb *cb) {
+    return -EOPNOTSUPP;
+}
 #endif	/* CONFIG_LRNG_DRNG_SWITCH */
 
 #endif /* _LRNG_H */
